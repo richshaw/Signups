@@ -23,7 +23,7 @@ function buildConfig(): NextAuthConfig {
         // `sendVerificationRequest` below is overridden to use our own email transport,
         // which reads EMAIL_FROM lazily at request time.
         server: 'smtp://user:pass@localhost:2525',
-        from: 'noreply@signups.invalid',
+        from: 'noreply@opensignup.invalid',
         async sendVerificationRequest({ identifier, url, expires }) {
           const expiresInMinutes = Math.max(
             1,
@@ -33,7 +33,7 @@ function buildConfig(): NextAuthConfig {
           const { html, text } = await renderEmail(node);
           await getEmailTransport().send({
             to: identifier,
-            subject: 'Sign in to Signups',
+            subject: 'Sign in to OpenSignup',
             html,
             text,
           });

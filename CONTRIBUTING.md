@@ -1,6 +1,6 @@
-# Contributing to Signups
+# Contributing to OpenSignup
 
-Signups is AGPL-3.0. Contributions retain your copyright and are licensed under the same terms.
+OpenSignup is AGPL-3.0. Contributions retain your copyright and are licensed under the same terms.
 
 ## Principles that override feature requests
 

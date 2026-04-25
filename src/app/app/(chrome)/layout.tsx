@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { signOut } from '@/auth/config';
 import { getOrganizerSession } from '@/auth/session';
 
-export const metadata = { title: { default: 'Dashboard', template: '%s · Signups' } };
+export const metadata = { title: { default: 'Dashboard', template: '%s · OpenSignup' } };
 
 export default async function OrganizerLayout({
   children,
@@ -29,7 +29,7 @@ export default async function OrganizerLayout({
             className="text-ink-muted flex min-w-0 items-center gap-2 text-sm"
           >
             <Link href="/app" className="text-ink font-semibold tracking-tight">
-              Signups
+              OpenSignup
             </Link>
             {crumbs}
           </nav>

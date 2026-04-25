@@ -1,8 +1,8 @@
 {
-  "name": "signup",
+  "name": "opensignup",
   "version": "0.1.0",
   "private": true,
-  "description": "Signups — ad-free, open-source, AI-native coordination for school parents, coaches, and community organizers.",
+  "description": "OpenSignup — ad-free, open-source coordination for school parents, coaches, and community organizers.",
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",

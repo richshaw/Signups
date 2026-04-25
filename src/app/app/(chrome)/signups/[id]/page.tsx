@@ -14,9 +14,9 @@ type PageParams = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: PageParams) {
   const { id } = await params;
   const session = await getOrganizerSession();
-  if (!session) return { title: 'Signups' };
+  if (!session) return { title: 'OpenSignup' };
   const result = await loadSignupForOrganizer(toActor(session), id);
-  if (!result.ok) return { title: 'Signups' };
+  if (!result.ok) return { title: 'OpenSignup' };
   return { title: result.value.title };
 }
 

@@ -8,7 +8,7 @@ export async function sendMagicLink(to: string, props: MagicLinkEmailProps) {
   const { html, text } = await renderEmail(createElement(MagicLinkEmail, props));
   return getEmailTransport().send({
     to,
-    subject: 'Sign in to Signups',
+    subject: 'Sign in to OpenSignup',
     html,
     text,
   });

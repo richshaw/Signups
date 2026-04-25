@@ -1,5 +1,5 @@
-# Fly.io configuration for Signups.
-# First time: `fly launch --no-deploy --copy-config` (or `fly apps create signup`),
+# Fly.io configuration for OpenSignup.
+# First time: `fly launch --no-deploy --copy-config` (or `fly apps create signups`),
 # then `fly postgres create` + `fly postgres attach`, then set secrets (see below),
 # then `fly deploy`.
 

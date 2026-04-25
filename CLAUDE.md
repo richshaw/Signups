@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product
 
-Signups — ad-free, open-source coordination tool (a self-hostable sign-up coordination tool). Organizers create *signups* containing *slots*; *participants* commit to slots without ever creating an account. AGPL-3.0.
+OpenSignup — ad-free, open-source coordination tool (a self-hostable sign-up coordination tool). Organizers create *signups* containing *slots*; *participants* commit to slots without ever creating an account. AGPL-3.0.
 
-The product name is **Signups** (plural — `signup.com` is taken). Lowercase `signup` remains acceptable for code/infra identifiers, and an individual entity is still called a "signup".
+The product name is **OpenSignup** (one word, served from `opensignup.org`). Lowercase `signup` remains acceptable for code/infra identifiers (folders, table, types, ID prefix `sig_`), and an individual entity is still called a "signup".
 
 Authoritative build plan: `docs/plans/2026-04-19-signup-v1.md`. Read this first when picking up significant new work — phases, task numbering, and "non-negotiables" referenced throughout the code originate there.
 
