@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { cache } from 'react';
 import { getDb } from '@/db/client';
 import { workspaceMembers } from '@/db/schema/members';
@@ -37,7 +37,13 @@ export const getOrganizerSession = cache(async (): Promise<OrganizerSession | nu
       memberRole: workspaceMembers.role,
     })
     .from(organizers)
-    .leftJoin(workspaceMembers, eq(workspaceMembers.organizerId, organizers.id))
+    .leftJoin(
+      workspaceMembers,
+      and(
+        eq(workspaceMembers.organizerId, organizers.id),
+        eq(workspaceMembers.status, 'active'),
+      ),
+    )
     .leftJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
     .where(eq(organizers.id, session.user.id));
 
