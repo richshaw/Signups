@@ -7,7 +7,7 @@ import tsparser from '@typescript-eslint/parser';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const compat = new FlatCompat({ baseDirectory: __dirname });
 
-export default [
+const config = [
   { ignores: ['.next', 'node_modules', 'dist', 'src/db/migrations', 'playwright-report'] },
   ...compat.extends('next/core-web-vitals'),
   {
@@ -20,3 +20,5 @@ export default [
     },
   },
 ];
+
+export default config;
