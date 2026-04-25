@@ -4,7 +4,6 @@ import { getEnv } from '@/lib/env';
 import * as schema from './schema';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __signup_pg__: ReturnType<typeof postgres> | undefined;
 }
 

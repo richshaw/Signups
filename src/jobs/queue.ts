@@ -2,7 +2,6 @@ import PgBoss from 'pg-boss';
 import { getEnv } from '@/lib/env';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __signup_pgboss__: PgBoss | undefined;
 }
 
