@@ -14,7 +14,7 @@ Licensed under [AGPL-3.0](LICENSE). If you run a modified version of OpenSignup 
 ## Quickstart (five minutes)
 
 ```bash
-git clone https://github.com/richardshaw/signup.git && cd signup
+git clone https://github.com/richshaw/OpenSignup.git && cd OpenSignup
 cp .env.example .env.local
 docker compose up -d           # local Postgres on :5433
 pnpm install

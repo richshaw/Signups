@@ -18,7 +18,7 @@ export default function LandingPage() {
           Organizer sign in
         </Link>
         <a
-          href="https://github.com/richardshaw/signup"
+          href="https://github.com/richshaw/OpenSignup"
           className="text-ink-muted hover:text-ink inline-flex items-center rounded-lg border border-surface-sunk px-5 py-3 font-medium transition"
         >
           View source

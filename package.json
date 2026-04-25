@@ -6,11 +6,11 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richardshaw/signup.git"
+    "url": "git+https://github.com/richshaw/OpenSignup.git"
   },
-  "homepage": "https://github.com/richardshaw/signup#readme",
+  "homepage": "https://github.com/richshaw/OpenSignup#readme",
   "bugs": {
-    "url": "https://github.com/richardshaw/signup/issues"
+    "url": "https://github.com/richshaw/OpenSignup/issues"
   },
   "packageManager": "pnpm@9.15.9",
   "engines": {
