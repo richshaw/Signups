@@ -33,11 +33,13 @@ async function main() {
 
   log.info('signup worker started · reminderDispatch + reminderSend queues online');
 
-  process.on('SIGTERM', async () => {
-    log.info('SIGTERM received, stopping worker');
+  const shutdown = async (signal: string) => {
+    log.info({ signal }, 'stopping worker');
     await boss.stop({ graceful: true });
     process.exit(0);
-  });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch((err) => {

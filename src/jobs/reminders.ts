@@ -1,5 +1,6 @@
 import { and, between, eq, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db/client';
+import { activity } from '@/db/schema/activity';
 import { commitments } from '@/db/schema/commitments';
 import { participants } from '@/db/schema/participants';
 import { signups } from '@/db/schema/signups';
@@ -79,6 +80,23 @@ export async function sendReminderJob(payload: ReminderSendPayload): Promise<voi
     return;
   }
   if (row.commitment.status !== 'confirmed' && row.commitment.status !== 'tentative') {
+    return;
+  }
+
+  // Idempotency guard: if a prior attempt sent the email but failed to record
+  // activity (causing a pg-boss retry), skip re-sending.
+  const [alreadySent] = await db
+    .select({ id: activity.id })
+    .from(activity)
+    .where(
+      and(
+        eq(activity.eventType, 'reminder.sent'),
+        sql`(${activity.payload}->>'commitmentId') = ${payload.commitmentId}`,
+      ),
+    )
+    .limit(1);
+  if (alreadySent) {
+    log.info({ commitmentId: payload.commitmentId }, 'reminder already sent; skipping');
     return;
   }
 
