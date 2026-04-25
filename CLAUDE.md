@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product
 
-Signup — ad-free, open-source coordination tool (a self-hostable sign-up coordination tool). Organizers create *signups* containing *slots*; *participants* commit to slots without ever creating an account. AGPL-3.0.
+Signups — ad-free, open-source coordination tool (a self-hostable sign-up coordination tool). Organizers create *signups* containing *slots*; *participants* commit to slots without ever creating an account. AGPL-3.0.
+
+The product name is **Signups** (plural — `signup.com` is taken). Lowercase `signup` remains acceptable for code/infra identifiers, and an individual entity is still called a "signup".
 
 Authoritative build plan: `docs/plans/2026-04-19-signup-v1.md`. Read this first when picking up significant new work — phases, task numbering, and "non-negotiables" referenced throughout the code originate there.
 
@@ -102,3 +104,10 @@ From `CONTRIBUTING.md` and the v1 plan:
 - `src/**/*.test.ts(x)` — unit, run by `pnpm test`.
 - `src/**/*.db.test.ts` — integration against real Postgres, run by `pnpm test:db` (sequential; needs `docker compose up -d` and migrations applied).
 - Playwright specs — `pnpm test:e2e`, includes axe-core a11y on `/s/[slug]`.
+
+## Recurring mistakes to avoid
+
+- **No speculative schema.** Every column in `src/db/schema/*.ts` must be read or written by a service in the same change that introduces it. The lone exception is `commitments.customFieldValues`, which predates this rule and is grandfathered in — don't add new columns of that shape.
+- **Public routes must handle every signup state.** `/s/[slug]` and any participant-facing route must render a real message for each of `draft`, `open`, `closed`, `archived`, and "not found". Never let a non-`open` state fall through to a generic 404.
+- **Reuse banners and state-message components.** Before adding a new banner / notice / empty-state, grep for an existing one (preview banner, closed banner, etc.) and either reuse it or extract a shared component. Tailwind makes drift cheap to introduce and expensive to spot.
+- **Verify before claiming done.** Before saying "tests pass" or proposing a commit, actually run `pnpm lint && pnpm typecheck && pnpm test` in the current turn and use that output as evidence. Past success doesn't count.

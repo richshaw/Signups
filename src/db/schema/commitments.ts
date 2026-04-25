@@ -41,6 +41,7 @@ export const commitments = pgTable(
     quantity: integer('quantity').notNull().default(1),
     notes: text('notes').notNull().default(''),
     notesVisibility: text('notes_visibility').notNull().default('public'), // public | organizer_only
+    // Grandfathered: pre-existing exception to the no-speculative-schema rule (see CLAUDE.md).
     customFieldValues: jsonb('custom_field_values').notNull().default({}),
     paymentId: text('payment_id'),
     /** HMAC hash of the edit-token the participant uses to edit/cancel. */
