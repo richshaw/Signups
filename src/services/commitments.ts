@@ -243,10 +243,19 @@ export async function updateOwnCommitment(
   if (data.swapToSlotId && data.swapToSlotId !== current.slotId) {
     const swapToSlotId = data.swapToSlotId;
     return db.transaction(async (tx) => {
-      await tx
+      const cancelled = await tx
         .update(commitments)
         .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-        .where(eq(commitments.id, commitmentId));
+        .where(
+          and(
+            eq(commitments.id, commitmentId),
+            or(eq(commitments.status, 'confirmed'), eq(commitments.status, 'tentative')),
+          ),
+        )
+        .returning({ id: commitments.id });
+      if (cancelled.length === 0) {
+        throw new Error('commitment is not active'); // rolls back the transaction
+      }
 
       const newCommit = await commitToSlot(tx, swapToSlotId, {
         name: data.name ?? current.participantName,
@@ -269,32 +278,34 @@ export async function updateOwnCommitment(
     });
   }
 
-  const [updated] = await db
-    .update(commitments)
-    .set({
-      ...(data.notes !== undefined ? { notes: data.notes } : {}),
-      ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(commitments.id, commitmentId))
-    .returning();
-  if (!updated) return err(serviceError('internal', 'update returned nothing'));
+  return db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(commitments)
+      .set({
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(commitments.id, commitmentId))
+      .returning();
+    if (!updated) return err(serviceError('internal', 'update returned nothing'));
 
-  if (data.name && data.name !== current.participantName) {
-    await db
-      .update(participants)
-      .set({ name: data.name })
-      .where(eq(participants.id, current.participantId));
-  }
+    if (data.name && data.name !== current.participantName) {
+      await tx
+        .update(participants)
+        .set({ name: data.name })
+        .where(eq(participants.id, current.participantId));
+    }
 
-  await recordActivity(db, {
-    signupId: current.signupId,
-    workspaceId: current.workspaceId,
-    actor: { actorId: current.participantId, actorType: 'participant' },
-    eventType: 'commitment.updated',
-    payload: { commitmentId, changed: Object.keys(data) },
+    await recordActivity(tx, {
+      signupId: current.signupId,
+      workspaceId: current.workspaceId,
+      actor: { actorId: current.participantId, actorType: 'participant' },
+      eventType: 'commitment.updated',
+      payload: { commitmentId, changed: Object.keys(data) },
+    });
+    return ok(updated);
   });
-  return ok(updated);
 }
 
 export async function cancelOwnCommitment(

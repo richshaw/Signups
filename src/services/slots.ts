@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, or, sql } from 'drizzle-orm';
 import type { Db, Queryable } from '@/db/client';
 import { commitments } from '@/db/schema/commitments';
 import { signups } from '@/db/schema/signups';
@@ -151,11 +151,16 @@ export async function updateSlot(
     const countRows = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(commitments)
-      .where(and(eq(commitments.slotId, slotId), eq(commitments.status, 'confirmed')));
+      .where(
+        and(
+          eq(commitments.slotId, slotId),
+          or(eq(commitments.status, 'confirmed'), eq(commitments.status, 'tentative')),
+        ),
+      );
     const count = countRows[0]?.count ?? 0;
     if (count > data.capacity) {
       return err(
-        serviceError('conflict', `capacity (${data.capacity}) is less than confirmed count (${count})`, {
+        serviceError('conflict', `capacity (${data.capacity}) is less than active count (${count})`, {
           field: 'capacity',
           received: data.capacity,
           suggestion: 'cancel some commitments before lowering capacity',
