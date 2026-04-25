@@ -3,14 +3,22 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
-import { getSignupForOrganizer, publishSignup, closeSignup } from '@/services/signups';
+import { publishSignup, closeSignup } from '@/services/signups';
+import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { addSlot, deleteSlot } from '@/services/slots';
 import { listCommitmentsForSignup } from '@/services/commitments';
 import { publicSignupUrl } from '@/lib/links';
 
-export const metadata = { title: 'Signup' };
-
 type PageParams = { params: Promise<{ id: string }> };
+
+export async function generateMetadata({ params }: PageParams) {
+  const { id } = await params;
+  const session = await getOrganizerSession();
+  if (!session) return { title: 'Signups' };
+  const result = await loadSignupForOrganizer(toActor(session), id);
+  if (!result.ok) return { title: 'Signups' };
+  return { title: result.value.title };
+}
 
 export default async function SignupDetailPage({ params }: PageParams) {
   const { id } = await params;
@@ -18,7 +26,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
   if (!session) redirect(`/login?callbackUrl=/app/signups/${id}`);
   const actor = toActor(session);
   const db = getDb();
-  const result = await getSignupForOrganizer(db, actor, id);
+  const result = await loadSignupForOrganizer(actor, id);
   if (!result.ok) {
     return (
       <div className="rounded-xl border border-surface-sunk bg-white p-8">
@@ -84,10 +92,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
     <div className="space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link href="/app" className="text-ink-muted text-sm hover:underline">
-            ← All signups
-          </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{sig.title}</h1>
             <span
               className={`rounded-full px-3 py-1 text-xs font-medium ${

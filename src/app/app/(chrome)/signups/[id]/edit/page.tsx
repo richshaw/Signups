@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
-import { getSignupForOrganizer, updateSignup } from '@/services/signups';
+import { updateSignup } from '@/services/signups';
+import { loadSignupForOrganizer } from '@/services/signups.cached';
 
 type PageParams = {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: PageParams) {
   const { id } = await params;
   const session = await getOrganizerSession();
   if (!session) return { title: 'Edit signup' };
-  const result = await getSignupForOrganizer(getDb(), toActor(session), id);
+  const result = await loadSignupForOrganizer(toActor(session), id);
   if (!result.ok) return { title: 'Edit signup' };
   return { title: `Edit: ${result.value.title}` };
 }
@@ -25,8 +26,7 @@ export default async function EditSignupPage({ params, searchParams }: PageParam
   const session = await getOrganizerSession();
   if (!session) redirect(`/login?callbackUrl=/app/signups/${id}/edit`);
   const actor = toActor(session);
-  const db = getDb();
-  const result = await getSignupForOrganizer(db, actor, id);
+  const result = await loadSignupForOrganizer(actor, id);
   if (!result.ok) {
     return (
       <div className="rounded-xl border border-surface-sunk bg-white p-8">
@@ -57,12 +57,7 @@ export default async function EditSignupPage({ params, searchParams }: PageParam
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <div>
-        <Link href={`/app/signups/${id}`} className="text-ink-muted text-sm hover:underline">
-          ← Back to signup
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Edit signup</h1>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Edit signup</h1>
       {error ? (
         <p className="bg-danger/10 text-danger rounded-lg px-3 py-2 text-sm">{error}</p>
       ) : null}

@@ -68,7 +68,7 @@ export const getOrganizerSession = cache(async (): Promise<OrganizerSession | nu
   };
 });
 
-export function toActor(session: OrganizerSession | null): Actor {
+export const toActor = cache((session: OrganizerSession | null): Actor => {
   if (!session) return { kind: 'anonymous' };
   const workspaceIds = session.memberships.map((m) => m.workspaceId);
   const workspaceRoles = Object.fromEntries(session.memberships.map((m) => [m.workspaceId, m.role]));
@@ -79,7 +79,7 @@ export function toActor(session: OrganizerSession | null): Actor {
     workspaceIds,
     workspaceRoles,
   };
-}
+});
 
 export async function requireActor(): Promise<Actor> {
   const session = await getOrganizerSession();
