@@ -4,6 +4,13 @@ import { getOrganizerSession } from '@/auth/session';
 
 export const metadata = { title: 'Sign in' };
 
+function safeCallbackUrl(raw: string | undefined): string {
+  if (!raw) return '/app';
+  // Same-origin paths only: must start with '/', must not be protocol-relative '//' or backslash-relative.
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/app';
+  return raw;
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -11,7 +18,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const session = await getOrganizerSession();
-  if (session) redirect(params.callbackUrl ?? '/app');
+  if (session) redirect(safeCallbackUrl(params.callbackUrl));
 
   async function handle(formData: FormData) {
     'use server';
