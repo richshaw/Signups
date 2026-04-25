@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { rateLimits } from '@/db/schema/idempotency';
 import type { Db } from '@/db/client';
 import { serviceError, ServiceException } from './errors';
@@ -24,32 +24,7 @@ export async function consumeRateLimit(
     Math.floor(now.getTime() / (policy.windowSeconds * 1000)) * (policy.windowSeconds * 1000),
   );
 
-  const existing = await db
-    .select({ count: rateLimits.count })
-    .from(rateLimits)
-    .where(
-      and(
-        eq(rateLimits.bucket, policy.bucket),
-        eq(rateLimits.subject, subject),
-        gte(rateLimits.windowStart, windowStart),
-      ),
-    )
-    .limit(1);
-
-  const currentCount = existing[0]?.count ?? 0;
-  if (currentCount >= policy.max) {
-    const retryAfter = Math.ceil(
-      (windowStart.getTime() + policy.windowSeconds * 1000 - now.getTime()) / 1000,
-    );
-    throw new ServiceException(
-      serviceError('rate_limited', 'too many requests', {
-        details: { retryAfterSeconds: retryAfter, bucket: policy.bucket },
-        suggestion: `wait ${retryAfter}s and retry`,
-      }),
-    );
-  }
-
-  await db
+  const [bumped] = await db
     .insert(rateLimits)
     .values({
       bucket: policy.bucket,
@@ -60,7 +35,20 @@ export async function consumeRateLimit(
     .onConflictDoUpdate({
       target: [rateLimits.bucket, rateLimits.subject, rateLimits.windowStart],
       set: { count: sql`${rateLimits.count} + 1` },
-    });
+    })
+    .returning({ count: rateLimits.count });
+
+  if (bumped && bumped.count > policy.max) {
+    const retryAfter = Math.ceil(
+      (windowStart.getTime() + policy.windowSeconds * 1000 - now.getTime()) / 1000,
+    );
+    throw new ServiceException(
+      serviceError('rate_limited', 'too many requests', {
+        details: { retryAfterSeconds: retryAfter, bucket: policy.bucket },
+        suggestion: `wait ${retryAfter}s and retry`,
+      }),
+    );
+  }
 }
 
 export const RateLimits = {
