@@ -38,7 +38,7 @@ export default function CopyLinkField({ url }: CopyLinkFieldProps) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="min-w-0 truncate underline hover:no-underline"
+        className="min-w-0 truncate font-mono underline hover:no-underline"
       >
         {url}
       </a>

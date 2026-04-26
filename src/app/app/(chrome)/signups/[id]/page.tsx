@@ -9,6 +9,7 @@ import { addSlot, deleteSlot } from '@/services/slots';
 import { listCommitmentsForSignup } from '@/services/commitments';
 import { publicSignupUrl } from '@/lib/links';
 import CopyLinkField from '@/components/CopyLinkField';
+import { StatusPill } from '@/components/status-pill';
 
 type PageParams = { params: Promise<{ id: string }> };
 
@@ -95,17 +96,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{sig.title}</h1>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
-                sig.status === 'open'
-                  ? 'bg-success/10 text-success'
-                  : sig.status === 'draft'
-                    ? 'bg-warn/10 text-warn'
-                    : 'bg-ink-soft/10 text-ink-muted'
-              }`}
-            >
-              {sig.status}
-            </span>
+            <StatusPill status={sig.status} />
           </div>
           <CopyLinkField url={publicUrl} />
         </div>

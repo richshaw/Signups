@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
+import { Banner } from '@/components/banner';
 import CommitDialog from './commit-dialog';
 
 export interface SignupViewSlot {
@@ -42,18 +43,13 @@ export default function SignupView({ signup, slots, slug, mode }: SignupViewProp
   return (
     <div className="container-tight flex flex-col gap-6">
       {isPreview ? (
-        <div role="status" className="space-y-1 rounded-lg bg-brand/10 px-5 py-4 text-brand">
-          <p className="text-base font-semibold">Preview</p>
-          <p className="text-sm">{previewCopy}</p>
-        </div>
+        <Banner kind="preview" title="Preview" body={previewCopy} />
       ) : effectiveStatus === 'closed' ? (
-        <div
-          role="status"
-          className="bg-surface-sunk text-ink-muted space-y-1 rounded-lg px-5 py-4"
-        >
-          <p className="text-base font-semibold">Closed</p>
-          <p className="text-sm">This signup is no longer collecting responses.</p>
-        </div>
+        <Banner
+          kind="closed"
+          title="Closed"
+          body="This signup is no longer collecting responses."
+        />
       ) : null}
 
       <header className="space-y-2">
@@ -88,26 +84,28 @@ export default function SignupView({ signup, slots, slug, mode }: SignupViewProp
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                <span className="text-ink-muted text-sm">
+                <span className="text-ink-muted w-9 text-right text-sm tabular-nums">
                   {slot.committed}
                   {slot.capacity ? `/${slot.capacity}` : ''}
                 </span>
-                {closed ? (
-                  <span className="text-ink-muted rounded-lg px-3 py-1.5 text-xs font-medium">
-                    {full ? 'Full' : 'Closed'}
-                  </span>
-                ) : isPreview ? (
-                  <button
-                    type="button"
-                    disabled
-                    title="Preview — publish to enable signups"
-                    className="bg-brand cursor-not-allowed rounded-lg px-4 py-2 text-sm font-medium text-white opacity-60"
-                  >
-                    Sign up
-                  </button>
-                ) : (
-                  <CommitDialog slotId={slot.id} slotTitle={slot.title} slug={slug} />
-                )}
+                <div className="flex w-24 justify-center">
+                  {closed ? (
+                    <span className="text-ink-muted px-3 py-1.5 text-xs font-medium">
+                      {full ? 'Full' : 'Closed'}
+                    </span>
+                  ) : isPreview ? (
+                    <button
+                      type="button"
+                      disabled
+                      title="Preview — publish to enable signups"
+                      className="bg-brand cursor-not-allowed rounded-lg px-4 py-2 text-sm font-medium text-white opacity-60"
+                    >
+                      Sign up
+                    </button>
+                  ) : (
+                    <CommitDialog slotId={slot.id} slotTitle={slot.title} slug={slug} />
+                  )}
+                </div>
               </div>
             </li>
           );
