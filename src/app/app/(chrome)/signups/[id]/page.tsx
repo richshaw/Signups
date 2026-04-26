@@ -8,6 +8,7 @@ import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { addSlot, deleteSlot } from '@/services/slots';
 import { listCommitmentsForSignup } from '@/services/commitments';
 import { publicSignupUrl } from '@/lib/links';
+import { DateField } from './date-field';
 
 type PageParams = { params: Promise<{ id: string }> };
 
@@ -172,11 +173,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
             placeholder="Slot title (e.g., Week 1 snack)"
             className="focus:border-brand focus:ring-brand w-full rounded-lg border border-surface-sunk px-3 py-2 focus:outline-none focus:ring-1"
           />
-          <input
-            type="date"
-            name="date"
-            className="focus:border-brand focus:ring-brand w-full rounded-lg border border-surface-sunk px-3 py-2 focus:outline-none focus:ring-1"
-          />
+          <DateField />
           <input
             type="number"
             name="capacity"
