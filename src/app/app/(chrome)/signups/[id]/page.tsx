@@ -13,6 +13,7 @@ import CopyLinkField from '@/components/CopyLinkField';
 import { StatusPill } from '@/components/status-pill';
 import { toSlug } from '@/lib/slug';
 import type { SlotFieldDefinition, SlotFieldConfig } from '@/schemas/slot-fields';
+import AddFieldForm from './add-field-form';
 
 type PageParams = { params: Promise<{ id: string }> };
 
@@ -259,53 +260,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
           Define the columns that describe each slot. Participants don&rsquo;t fill these in &mdash;
           you do, when creating slots.
         </p>
-        <form
-          action={addFieldAction}
-          className="grid grid-cols-1 gap-3 rounded-xl border border-surface-sunk bg-white p-5 sm:grid-cols-[1fr_140px_120px_auto] sm:items-end"
-        >
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Label</span>
-            <input
-              type="text"
-              name="label"
-              required
-              placeholder="e.g., Date, Teacher, Subject"
-              className="focus:border-brand focus:ring-brand w-full rounded-lg border border-surface-sunk px-3 py-2 focus:outline-none focus:ring-1"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Type</span>
-            <select
-              name="fieldType"
-              defaultValue="text"
-              className="focus:border-brand focus:ring-brand block min-h-[42px] w-full appearance-none rounded-lg border border-surface-sunk bg-white px-3 py-2 focus:outline-none focus:ring-1"
-            >
-              <option value="text">Text</option>
-              <option value="date">Date</option>
-              <option value="time">Time</option>
-              <option value="number">Number</option>
-              <option value="enum">Enum</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="required" defaultChecked /> Required
-          </label>
-          <button
-            type="submit"
-            className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
-          >
-            Add field
-          </button>
-          <label className="block sm:col-span-4">
-            <span className="mb-1 block text-sm font-medium">Enum choices (one per line, optional)</span>
-            <textarea
-              name="choices"
-              rows={3}
-              placeholder={'Math\nScience\nHistory'}
-              className="focus:border-brand focus:ring-brand w-full rounded-lg border border-surface-sunk px-3 py-2 focus:outline-none focus:ring-1"
-            />
-          </label>
-        </form>
+        <AddFieldForm action={addFieldAction} />
 
         {fields.length === 0 ? (
           <p className="text-ink-muted rounded-lg border border-dashed border-surface-sunk p-6 text-center text-sm">
@@ -347,6 +302,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Group slots by</span>
               <select
+                key={`groupBy:${groupByRef}`}
                 name="groupByFieldRef"
                 defaultValue={groupByRef}
                 className="focus:border-brand focus:ring-brand block min-h-[42px] w-full appearance-none rounded-lg border border-surface-sunk bg-white px-3 py-2 focus:outline-none focus:ring-1"
@@ -363,6 +319,7 @@ export default async function SignupDetailPage({ params }: PageParams) {
               <label className="block">
                 <span className="mb-1 block text-sm font-medium">Reminder date field</span>
                 <select
+                  key={`reminder:${reminderRef}`}
                   name="reminderFromFieldRef"
                   defaultValue={reminderRef}
                   className="focus:border-brand focus:ring-brand block min-h-[42px] w-full appearance-none rounded-lg border border-surface-sunk bg-white px-3 py-2 focus:outline-none focus:ring-1"

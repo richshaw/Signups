@@ -75,6 +75,32 @@ export async function addField(
     );
   }
 
+  if (data.required) {
+    const slotRows = await db
+      .select({ id: slots.id, values: slots.values })
+      .from(slots)
+      .where(eq(slots.signupId, signupId));
+    const offending = slotRows.filter((r) => {
+      const v = (r.values as Record<string, unknown>)?.[data.ref];
+      return v === undefined || v === null || v === '';
+    });
+    if (offending.length > 0) {
+      return err(
+        serviceError(
+          'conflict',
+          `cannot add a required field while ${offending.length} slot(s) have no value for "${data.ref}". Make the field optional, or remove/edit the slots first.`,
+          {
+            field: 'required',
+            details: {
+              slotIds: offending.slice(0, 20).map((r) => r.id),
+              count: offending.length,
+            },
+          },
+        ),
+      );
+    }
+  }
+
   const id = makeId('fld');
   const inserted = await db.transaction(async (tx) => {
     const [row] = await tx

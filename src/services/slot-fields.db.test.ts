@@ -157,6 +157,56 @@ describe('slot-fields service (db)', () => {
         await teardown(otherFx);
       }
     });
+
+    it('rejects a required field when an existing slot has no value for it', async () => {
+      const sigId = await createTestSignup(fx, 'Add required after slot');
+      const first = await addField(fx.db, fx.actor, sigId, {
+        ref: 'game',
+        label: 'Game',
+        fieldType: 'text',
+        config: { fieldType: 'text' },
+      });
+      if (!first.ok) throw new Error('setup failed');
+      const slotR = await addSlot(fx.db, fx.actor, sigId, {
+        values: { game: 'Lakers vs Celtics' },
+      });
+      if (!slotR.ok) throw new Error('slot setup failed');
+
+      const r = await addField(fx.db, fx.actor, sigId, {
+        ref: 'type',
+        label: 'Type',
+        fieldType: 'enum',
+        config: { fieldType: 'enum', choices: ['Food', 'Drink'] },
+        required: true,
+      });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('conflict');
+    });
+
+    it('allows an optional field to be added after slots exist', async () => {
+      const sigId = await createTestSignup(fx, 'Add optional after slot');
+      const first = await addField(fx.db, fx.actor, sigId, {
+        ref: 'game',
+        label: 'Game',
+        fieldType: 'text',
+        config: { fieldType: 'text' },
+      });
+      if (!first.ok) throw new Error('setup failed');
+      const slotR = await addSlot(fx.db, fx.actor, sigId, {
+        values: { game: 'Lakers vs Celtics' },
+      });
+      if (!slotR.ok) throw new Error('slot setup failed');
+
+      const r = await addField(fx.db, fx.actor, sigId, {
+        ref: 'note',
+        label: 'Note',
+        fieldType: 'text',
+        config: { fieldType: 'text' },
+        required: false,
+      });
+      expect(r.ok).toBe(true);
+    });
   });
 
   describe('updateField', () => {
