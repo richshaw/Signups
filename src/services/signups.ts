@@ -10,16 +10,19 @@ import { parseInputSafe } from '@/lib/parse';
 import { requireWorkspaceAccess, requireWorkspaceWrite, type Actor } from '@/lib/policy';
 import { err, ok, type Result } from '@/lib/result';
 import { toSlug } from '@/lib/slug';
+import type { SlotFieldDefinition } from '@/schemas/slot-fields';
 import {
   type SignupStatus,
   SignupCreateInputSchema,
   SignupUpdateInputSchema,
 } from '@/schemas/signups';
+import { listFieldsForSignup, recomputeSlotAtForSignup } from './slot-fields';
 
 type SignupRow = typeof signups.$inferSelect;
 
 export interface SignupWithSlots extends SignupRow {
   slots: (typeof slots.$inferSelect)[];
+  fields: SlotFieldDefinition[];
 }
 
 export async function createSignup(
@@ -81,12 +84,15 @@ export async function getSignupForOrganizer(
   const row = found[0];
   if (!row) return err(serviceError('not_found', 'signup not found'));
   requireWorkspaceAccess(actor, row.workspaceId);
-  const signupSlots = await db
-    .select()
-    .from(slots)
-    .where(eq(slots.signupId, signupId))
-    .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt));
-  return ok({ ...row, slots: signupSlots });
+  const [signupSlots, fields] = await Promise.all([
+    db
+      .select()
+      .from(slots)
+      .where(eq(slots.signupId, signupId))
+      .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt)),
+    listFieldsForSignup(db, signupId),
+  ]);
+  return ok({ ...row, slots: signupSlots, fields });
 }
 
 export async function updateSignup(
@@ -104,6 +110,13 @@ export async function updateSignup(
   if (!input.ok) return input;
   const data = input.value;
 
+  const prevSettings = (row.settings as { reminderFromFieldRef?: string; [k: string]: unknown }) ?? {};
+  const mergedSettings =
+    data.settings !== undefined ? { ...prevSettings, ...data.settings } : prevSettings;
+  const reminderRefChanged =
+    data.settings !== undefined &&
+    mergedSettings.reminderFromFieldRef !== prevSettings.reminderFromFieldRef;
+
   const patched = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(signups)
@@ -115,14 +128,16 @@ export async function updateSignup(
         ...(data.closesAt !== undefined
           ? { closesAt: data.closesAt ? new Date(data.closesAt) : null }
           : {}),
-        ...(data.settings !== undefined
-          ? { settings: { ...(row.settings as object), ...data.settings } }
-          : {}),
+        ...(data.settings !== undefined ? { settings: mergedSettings } : {}),
         updatedAt: new Date(),
       })
       .where(eq(signups.id, signupId))
       .returning();
     if (!updated) throw new Error('update returned nothing');
+
+    if (reminderRefChanged) {
+      await recomputeSlotAtForSignup(tx, signupId);
+    }
 
     await recordActivity(tx, {
       signupId,
@@ -254,11 +269,14 @@ export async function getPublicSignup(
     return err(serviceError('not_found', 'signup is no longer available', { received: 'archived' }));
   }
 
-  const signupSlots = await db
-    .select()
-    .from(slots)
-    .where(eq(slots.signupId, row.id))
-    .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt));
+  const [signupSlots, fields] = await Promise.all([
+    db
+      .select()
+      .from(slots)
+      .where(eq(slots.signupId, row.id))
+      .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt)),
+    listFieldsForSignup(db, row.id),
+  ]);
 
   const committerRows = await db
     .select({
@@ -281,7 +299,7 @@ export async function getPublicSignup(
     committerByslot[c.slotId] = list;
   }
 
-  return ok({ ...row, slots: signupSlots, committerByslot });
+  return ok({ ...row, slots: signupSlots, fields, committerByslot });
 }
 
 async function pickAvailableSlug(db: Db, title: string): Promise<string> {

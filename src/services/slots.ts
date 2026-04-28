@@ -12,12 +12,19 @@ import { err, ok, type Result } from '@/lib/result';
 import { toSlug } from '@/lib/slug';
 import {
   type SlotUpdateInput,
-  SlotBulkDateInputSchema,
+  SlotBulkInputSchema,
   SlotCreateInputSchema,
   SlotUpdateInputSchema,
 } from '@/schemas/slots';
+import { extractSlotAt, listFieldsForSignup, validateSlotValues } from './slot-fields';
 
 type SlotRow = typeof slots.$inferSelect;
+
+interface SignupSettingsLike {
+  groupByFieldRefs?: string[];
+  reminderFromFieldRef?: string | undefined;
+  [k: string]: unknown;
+}
 
 export async function addSlot(
   db: Db,
@@ -38,9 +45,15 @@ export async function addSlot(
   if (!signupRow) return err(serviceError('not_found', 'signup not found'));
   requireWorkspaceWrite(actor, signupRow.workspaceId);
 
+  const fields = await listFieldsForSignup(db, signupId);
+  const valid = validateSlotValues(fields, data.values);
+  if (!valid.ok) return valid;
+
+  const settings = (signupRow.settings as SignupSettingsLike) ?? {};
+  const slotAt = extractSlotAt(settings, fields, data.values);
+
   const row = await db.transaction(async (tx) => {
-    const ref = await pickAvailableRef(tx, signupId, data.title);
-    const slotAt = extractSlotAt(data);
+    const ref = await pickAvailableRef(tx, signupId, summarizeValues(data.values));
     const [inserted] = await tx
       .insert(slots)
       .values({
@@ -48,14 +61,9 @@ export async function addSlot(
         signupId,
         workspaceId: signupRow.workspaceId,
         ref,
-        title: data.title,
-        description: data.description,
-        slotType: data.slotType,
+        values: data.values,
         capacity: data.capacity ?? null,
         sortOrder: data.sortOrder ?? Math.floor(Date.now() / 1000),
-        location: data.location ?? null,
-        groupId: data.groupId ?? null,
-        typeData: data.data,
         slotAt,
         status: 'open',
       })
@@ -67,20 +75,20 @@ export async function addSlot(
       workspaceId: signupRow.workspaceId,
       actor: { actorId: (actor as { id: string }).id, actorType: 'organizer' },
       eventType: 'slot.created',
-      payload: { slotId: inserted.id, slotType: inserted.slotType },
+      payload: { slotId: inserted.id },
     });
     return inserted;
   });
   return ok(row);
 }
 
-export async function addSlotsFromDates(
+export async function addSlotsBulk(
   db: Db,
   actor: Actor,
   signupId: string,
   rawInput: unknown,
 ): Promise<Result<SlotRow[], ServiceError>> {
-  const input = parseInputSafe(SlotBulkDateInputSchema, rawInput);
+  const input = parseInputSafe(SlotBulkInputSchema, rawInput);
   if (!input.ok) return input;
   const data = input.value;
 
@@ -93,31 +101,34 @@ export async function addSlotsFromDates(
   if (!signupRow) return err(serviceError('not_found', 'signup not found'));
   requireWorkspaceWrite(actor, signupRow.workspaceId);
 
-  const rows = await db.transaction(async (tx) => {
-    const inserted: SlotRow[] = [];
-    for (const [index, iso] of data.dates.entries()) {
-      const dayTitle = data.titleTemplate
-        ? data.titleTemplate.replace('{date}', iso)
-        : formatHumanDate(iso);
-      const ref = await pickAvailableRef(tx, signupId, `${iso}-${dayTitle}`);
-      const [row] = await tx
+  const fields = await listFieldsForSignup(db, signupId);
+  for (const r of data.rows) {
+    const valid = validateSlotValues(fields, r.values);
+    if (!valid.ok) return valid;
+  }
+
+  const settings = (signupRow.settings as SignupSettingsLike) ?? {};
+
+  const inserted = await db.transaction(async (tx) => {
+    const out: SlotRow[] = [];
+    for (const [index, row] of data.rows.entries()) {
+      const slotAt = extractSlotAt(settings, fields, row.values);
+      const ref = await pickAvailableRef(tx, signupId, summarizeValues(row.values));
+      const [created] = await tx
         .insert(slots)
         .values({
           id: makeId('slot'),
           signupId,
           workspaceId: signupRow.workspaceId,
           ref,
-          title: dayTitle,
-          description: '',
-          slotType: 'date',
-          capacity: data.capacity ?? null,
-          sortOrder: index,
-          typeData: { date: iso },
-          slotAt: new Date(`${iso}T12:00:00.000Z`),
+          values: row.values,
+          capacity: row.capacity ?? null,
+          sortOrder: row.sortOrder ?? index,
+          slotAt,
           status: 'open',
         })
         .returning();
-      if (row) inserted.push(row);
+      if (created) out.push(created);
     }
 
     await recordActivity(tx, {
@@ -125,11 +136,11 @@ export async function addSlotsFromDates(
       workspaceId: signupRow.workspaceId,
       actor: { actorId: (actor as { id: string }).id, actorType: 'organizer' },
       eventType: 'slot.created',
-      payload: { count: inserted.length, bulk: true },
+      payload: { count: out.length, bulk: true },
     });
-    return inserted;
+    return out;
   });
-  return ok(rows);
+  return ok(inserted);
 }
 
 export async function updateSlot(
@@ -169,15 +180,29 @@ export async function updateSlot(
     }
   }
 
+  let nextSlotAt: Date | null | undefined;
+  if (data.values !== undefined) {
+    const signupRow = await db
+      .select()
+      .from(signups)
+      .where(eq(signups.id, slotRow.signupId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!signupRow) return err(serviceError('not_found', 'signup not found'));
+    const fields = await listFieldsForSignup(db, slotRow.signupId);
+    const valid = validateSlotValues(fields, data.values);
+    if (!valid.ok) return valid;
+    const settings = (signupRow.settings as SignupSettingsLike) ?? {};
+    nextSlotAt = extractSlotAt(settings, fields, data.values);
+  }
+
   const updated = await db.transaction(async (tx) => {
     const [row] = await tx
       .update(slots)
       .set({
-        ...(data.title !== undefined ? { title: data.title } : {}),
-        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.values !== undefined ? { values: data.values, slotAt: nextSlotAt ?? null } : {}),
         ...(data.capacity !== undefined ? { capacity: data.capacity } : {}),
         ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
-        ...(data.location !== undefined ? { location: data.location ?? null } : {}),
         ...(data.status !== undefined ? { status: data.status } : {}),
         updatedAt: new Date(),
       })
@@ -233,30 +258,14 @@ export async function listSlotsForSignup(db: Db, signupId: string) {
     .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt));
 }
 
-function extractSlotAt(
-  input: { slotType: string; data: Record<string, unknown> },
-): Date | null {
-  if (input.slotType === 'date') {
-    const d = input.data.date;
-    if (typeof d === 'string') return new Date(`${d}T12:00:00.000Z`);
+function summarizeValues(values: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const val of Object.values(values)) {
+    if (val === undefined || val === null || val === '') continue;
+    parts.push(String(val));
+    if (parts.length >= 2) break;
   }
-  if (input.slotType === 'time') {
-    const s = input.data.start;
-    if (typeof s === 'string') return new Date(s);
-  }
-  return null;
-}
-
-function formatHumanDate(iso: string): string {
-  const [y, m, d] = iso.split('-').map((n) => Number(n));
-  if (!y || !m || !d) return iso;
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+  return parts.join('-') || 'slot';
 }
 
 async function pickAvailableRef(db: Queryable, signupId: string, seed: string): Promise<string> {
