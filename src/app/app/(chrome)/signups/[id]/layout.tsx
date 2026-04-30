@@ -14,6 +14,15 @@ type LayoutProps = {
   params: Promise<{ id: string }>;
 };
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await getOrganizerSession();
+  if (!session) return { title: 'OpenSignup' };
+  const result = await loadSignupForOrganizer(toActor(session), id);
+  if (!result.ok) return { title: 'OpenSignup' };
+  return { title: result.value.title };
+}
+
 export default async function SignupDetailLayout({ children, params }: LayoutProps) {
   const { id } = await params;
   const session = await getOrganizerSession();
