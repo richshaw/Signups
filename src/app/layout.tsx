@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: '%s · OpenSignup',
   },
   description:
-    'OpenSignup — ad-free, open-source coordination for school parents, coaches, and community organizers.',
+    'OpenSignup: ad-free, open-source coordination for school parents, coaches, and community organizers.',
 };
 
 export const viewport: Viewport = {

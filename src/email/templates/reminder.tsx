@@ -54,8 +54,8 @@ export function ReminderEmail({
         View signup
       </Button>
       <Text className="mt-6 text-xs text-[#8a93a4]">
-        Need to change or cancel? Tap the button above — you&apos;ll see your commitment
-        highlighted at the top.
+        Need to change or cancel? Tap the button above. You&apos;ll see your commitment highlighted
+        at the top.
       </Text>
     </EmailLayout>
   );

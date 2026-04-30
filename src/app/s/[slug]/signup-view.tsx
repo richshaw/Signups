@@ -159,7 +159,7 @@ export default function SignupView({ signup, fields, groupByRef, slots, slug, mo
                           <button
                             type="button"
                             disabled
-                            title="Preview — publish to enable signups"
+                            title="Preview: publish to enable signups"
                             className="bg-brand cursor-not-allowed rounded-lg px-4 py-2 text-sm font-medium text-white opacity-60"
                           >
                             Sign up

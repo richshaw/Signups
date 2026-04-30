@@ -13,3 +13,5 @@ test-results
 .idea
 *.tsbuildinfo
 next-env.d.ts
+.remember
+.claude
