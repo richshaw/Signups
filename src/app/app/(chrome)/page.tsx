@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Your signups</h1>
           <p className="text-ink-muted text-sm">
-            {rows.length === 0 ? 'No signups yet — start one below.' : `${rows.length} total`}
+            {rows.length === 0 ? 'No signups yet. Start one below.' : `${rows.length} total`}
           </p>
         </div>
         <Link

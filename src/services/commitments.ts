@@ -351,3 +351,11 @@ export async function listCommitmentsForSignup(db: Db, signupId: string) {
     .where(eq(commitments.signupId, signupId))
     .orderBy(asc(commitments.createdAt));
 }
+
+export async function countCommitmentsForSignup(db: Db, signupId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(commitments)
+    .where(eq(commitments.signupId, signupId));
+  return rows[0]?.count ?? 0;
+}
