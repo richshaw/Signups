@@ -144,7 +144,7 @@ export async function commitToSlot(
 
     if (slot.capacity !== null && count >= slot.capacity) {
       const alts = await tx
-        .select({ id: slots.id, title: slots.title, slotAt: slots.slotAt })
+        .select({ id: slots.id, ref: slots.ref, slotAt: slots.slotAt })
         .from(slots)
         .where(and(eq(slots.signupId, slot.signupId), eq(slots.status, 'open'), ne(slots.id, slotId)))
         .orderBy(asc(slots.slotAt), asc(slots.sortOrder))
@@ -154,7 +154,7 @@ export async function commitToSlot(
           details: {
             alternatives: alts.map((a) => ({
               id: a.id,
-              title: a.title,
+              ref: a.ref,
               slotAt: a.slotAt?.toISOString() ?? null,
             })),
           },
@@ -350,4 +350,12 @@ export async function listCommitmentsForSignup(db: Db, signupId: string) {
     .innerJoin(participants, eq(participants.id, commitments.participantId))
     .where(eq(commitments.signupId, signupId))
     .orderBy(asc(commitments.createdAt));
+}
+
+export async function countCommitmentsForSignup(db: Db, signupId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(commitments)
+    .where(eq(commitments.signupId, signupId));
+  return rows[0]?.count ?? 0;
 }

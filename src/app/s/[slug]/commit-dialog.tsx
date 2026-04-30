@@ -82,7 +82,7 @@ export default function CommitDialog({ slotId, slotTitle, slug }: CommitDialogPr
           if (e.target === e.currentTarget && !submitting) setOpen(false);
         }}
       >
-        <div className="w-full max-w-md rounded-t-2xl bg-white p-6 shadow-card sm:rounded-2xl">
+        <div className="w-full max-w-md rounded-t-xl bg-white p-6 shadow-card sm:rounded-xl">
           {success ? (
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">You&apos;re in.</h2>
@@ -92,7 +92,7 @@ export default function CommitDialog({ slotId, slotTitle, slug }: CommitDialogPr
               </p>
               <a
                 href={success.editUrl}
-                className="block break-all rounded-lg bg-surface-raised px-3 py-2 text-xs"
+                className="block break-all rounded-lg bg-surface-raised px-3 py-2 font-mono text-xs"
               >
                 {success.editUrl}
               </a>

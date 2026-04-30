@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { listSignupsForWorkspace } from '@/services/signups';
+import { StatusPill } from '@/components/status-pill';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Your signups' };
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Your signups</h1>
           <p className="text-ink-muted text-sm">
-            {rows.length === 0 ? 'No signups yet — start one below.' : `${rows.length} total`}
+            {rows.length === 0 ? 'No signups yet. Start one below.' : `${rows.length} total`}
           </p>
         </div>
         <Link
@@ -63,19 +64,9 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <p className="truncate font-medium">{r.title}</p>
-                    <p className="text-ink-muted truncate text-sm">/s/{r.slug}</p>
+                    <p className="text-ink-muted truncate font-mono text-sm">/s/{r.slug}</p>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      r.status === 'open'
-                        ? 'bg-success/10 text-success'
-                        : r.status === 'draft'
-                          ? 'bg-warn/10 text-warn'
-                          : 'bg-ink-soft/10 text-ink-muted'
-                    }`}
-                  >
-                    {r.status}
-                  </span>
+                  <StatusPill status={r.status} />
                 </div>
               </Link>
             </li>
