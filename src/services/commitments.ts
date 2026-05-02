@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import type { Db, Queryable } from '@/db/client';
 import { commitments } from '@/db/schema/commitments';
 import { participants } from '@/db/schema/participants';
@@ -130,9 +130,10 @@ export async function commitToSlot(
       );
     }
 
-    // Count active commitments for capacity check
-    const countRows = await tx
-      .select({ count: sql<number>`count(*)::int` })
+    // Capacity is the cap on sum(quantity), not row count: a Qty=5 commit on a
+    // cap=4 slot is over capacity even with zero existing rows.
+    const sumRows = await tx
+      .select({ sum: sql<number>`coalesce(sum(${commitments.quantity}), 0)::int` })
       .from(commitments)
       .where(
         and(
@@ -140,9 +141,10 @@ export async function commitToSlot(
           or(eq(commitments.status, 'confirmed'), eq(commitments.status, 'tentative')),
         ),
       );
-    const count = countRows[0]?.count ?? 0;
+    const usedQty = sumRows[0]?.sum ?? 0;
 
-    if (slot.capacity !== null && count >= slot.capacity) {
+    if (slot.capacity !== null && usedQty + data.quantity > slot.capacity) {
+      const remaining = Math.max(0, slot.capacity - usedQty);
       const alts = await tx
         .select({ id: slots.id, ref: slots.ref, slotAt: slots.slotAt })
         .from(slots)
@@ -150,16 +152,28 @@ export async function commitToSlot(
         .orderBy(asc(slots.slotAt), asc(slots.sortOrder))
         .limit(3);
       return err(
-        serviceError('capacity_full', 'that slot just filled', {
-          details: {
-            alternatives: alts.map((a) => ({
-              id: a.id,
-              ref: a.ref,
-              slotAt: a.slotAt?.toISOString() ?? null,
-            })),
+        serviceError(
+          'capacity_full',
+          remaining === 0
+            ? 'that slot just filled'
+            : `only ${remaining} left — you asked for ${data.quantity}`,
+          {
+            details: {
+              remaining,
+              requested: data.quantity,
+              capacity: slot.capacity,
+              alternatives: alts.map((a) => ({
+                id: a.id,
+                ref: a.ref,
+                slotAt: a.slotAt?.toISOString() ?? null,
+              })),
+            },
+            suggestion:
+              remaining === 0
+                ? 'pick one of the suggested open slots'
+                : `lower the quantity to ${remaining} or fewer`,
           },
-          suggestion: 'pick one of the suggested open slots',
-        }),
+        ),
       );
     }
 
@@ -226,6 +240,43 @@ export async function getOwnCommitment(
   return ok({ ...found.c, participantName: found.pname, participantEmail: found.pemail });
 }
 
+/**
+ * Batch lookup for the returning-participant cookie. Resolves a list of
+ * (commitmentId, token) pairs against a single signup in one DB query, dropping
+ * any rows that don't belong to the signup, are inactive, or fail token verify.
+ */
+export async function getOwnCommitmentsForSignup(
+  db: Db,
+  signupId: string,
+  items: { commitmentId: string; token: string }[],
+): Promise<Array<CommitmentRow & { participantName: string; participantEmail: string }>> {
+  if (items.length === 0) return [];
+  const tokenById = new Map(items.map((i) => [i.commitmentId, i.token]));
+  const rows = await db
+    .select({
+      c: commitments,
+      pname: participants.name,
+      pemail: participants.email,
+    })
+    .from(commitments)
+    .innerJoin(participants, eq(participants.id, commitments.participantId))
+    .where(
+      and(
+        eq(commitments.signupId, signupId),
+        inArray(commitments.id, [...tokenById.keys()]),
+        or(eq(commitments.status, 'confirmed'), eq(commitments.status, 'tentative')),
+      ),
+    );
+  const out: Array<CommitmentRow & { participantName: string; participantEmail: string }> = [];
+  for (const row of rows) {
+    const token = tokenById.get(row.c.id);
+    if (!token) continue;
+    if (!verifyHash(token, row.c.editTokenHash)) continue;
+    out.push({ ...row.c, participantName: row.pname, participantEmail: row.pemail });
+  }
+  return out;
+}
+
 export async function updateOwnCommitment(
   db: Db,
   commitmentId: string,
@@ -290,6 +341,50 @@ export async function updateOwnCommitment(
   }
 
   return db.transaction(async (tx) => {
+    // Capacity guard: only fires when quantity *increases* on the same slot.
+    // The swap path (slotId change) returns earlier and re-runs the full
+    // capacity check via commitToSlot, so a slot move never reaches here.
+    if (data.quantity !== undefined && data.quantity > current.quantity) {
+      const slotRows = await tx
+        .select({ capacity: slots.capacity })
+        .from(slots)
+        .where(eq(slots.id, current.slotId))
+        .for('update')
+        .limit(1);
+      const cap = slotRows[0]?.capacity ?? null;
+      if (cap !== null) {
+        const sumRows = await tx
+          .select({ sum: sql<number>`coalesce(sum(${commitments.quantity}), 0)::int` })
+          .from(commitments)
+          .where(
+            and(
+              eq(commitments.slotId, current.slotId),
+              ne(commitments.id, commitmentId),
+              or(eq(commitments.status, 'confirmed'), eq(commitments.status, 'tentative')),
+            ),
+          );
+        const otherQty = sumRows[0]?.sum ?? 0;
+        if (otherQty + data.quantity > cap) {
+          const remaining = Math.max(0, cap - otherQty);
+          return err(
+            serviceError(
+              'capacity_full',
+              remaining === 0
+                ? 'no spots left for additional quantity'
+                : `only ${remaining} left — you asked for ${data.quantity}`,
+              {
+                details: { remaining, requested: data.quantity, capacity: cap },
+                suggestion:
+                  remaining === 0
+                    ? 'lower the quantity'
+                    : `lower the quantity to ${remaining} or fewer`,
+              },
+            ),
+          );
+        }
+      }
+    }
+
     const [updated] = await tx
       .update(commitments)
       .set({
