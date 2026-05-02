@@ -340,7 +340,7 @@ describe('signups service (db)', () => {
       expect(r.ok).toBe(true);
       if (!r.ok) return;
       expect(r.value.id).toBe(created.value.id);
-      expect(r.value.committedByslot).toEqual({});
+      expect(r.value.committedBySlot).toEqual({});
     });
 
     it('returns ok for a closed signup', async () => {
@@ -414,10 +414,10 @@ describe('signups service (db)', () => {
 
       const pubR = await getPublicSignup(fx.db, created.value.slug);
       if (!pubR.ok) throw new Error('public read failed');
-      expect(pubR.value.committedByslot).toEqual({});
+      expect(pubR.value.committedBySlot).toEqual({});
     });
 
-    it('reports committedByslot as sum of quantities', async () => {
+    it('reports committedBySlot as sum of quantities', async () => {
       const created = await createSignup(fx.db, fx.actor, fx.workspaceId, validCreateInput('Qty sum'));
       if (!created.ok) throw new Error('setup failed');
       const slotR = await addSlot(fx.db, fx.actor, created.value.id, { values: {}, capacity: 10 });
@@ -440,7 +440,7 @@ describe('signups service (db)', () => {
 
       const pubR = await getPublicSignup(fx.db, created.value.slug);
       if (!pubR.ok) throw new Error('public read failed');
-      expect(pubR.value.committedByslot[slotR.value.id]).toBe(7);
+      expect(pubR.value.committedBySlot[slotR.value.id]).toBe(7);
 
       const c = await commitToSlot(fx.db, slotR.value.id, {
         name: 'C',

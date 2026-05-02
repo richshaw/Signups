@@ -304,6 +304,9 @@ export async function updateOwnCommitment(
   }
 
   return db.transaction(async (tx) => {
+    // Capacity guard: only fires when quantity *increases* on the same slot.
+    // The swap path (slotId change) returns earlier and re-runs the full
+    // capacity check via commitToSlot, so a slot move never reaches here.
     if (data.quantity !== undefined && data.quantity > current.quantity) {
       const slotRows = await tx
         .select({ capacity: slots.capacity })

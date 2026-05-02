@@ -43,7 +43,7 @@ export default async function PublicSignupPage({ params }: PageParams) {
     slotAt: slot.slotAt ? slot.slotAt.toISOString() : null,
     capacity: slot.capacity,
     status: slot.status as SlotStatus,
-    committed: sig.committedByslot[slot.id] ?? 0,
+    committed: sig.committedBySlot[slot.id] ?? 0,
   }));
   const fields: SignupViewField[] = sig.fields.map((f) => ({
     ref: f.ref,

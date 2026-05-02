@@ -258,7 +258,7 @@ export async function listSignupsForWorkspace(
 export async function getPublicSignup(
   db: Db,
   slug: string,
-): Promise<Result<SignupWithSlots & { committedByslot: Record<string, number> }, ServiceError>> {
+): Promise<Result<SignupWithSlots & { committedBySlot: Record<string, number> }, ServiceError>> {
   const found = await db.select().from(signups).where(eq(signups.slug, slug)).limit(1);
   const row = found[0];
   if (!row || row.deletedAt) return err(serviceError('not_found', 'signup not found'));
@@ -292,12 +292,12 @@ export async function getPublicSignup(
     )
     .groupBy(commitments.slotId);
 
-  const committedByslot: Record<string, number> = {};
+  const committedBySlot: Record<string, number> = {};
   for (const c of committerRows) {
-    committedByslot[c.slotId] = c.sum;
+    committedBySlot[c.slotId] = c.sum;
   }
 
-  return ok({ ...row, slots: signupSlots, fields, committedByslot });
+  return ok({ ...row, slots: signupSlots, fields, committedBySlot });
 }
 
 async function pickAvailableSlug(db: Db, title: string): Promise<string> {
