@@ -24,9 +24,12 @@ export async function findReplay(
         eq(idempotencyKeys.key, ctx.key),
         ctx.organizerId != null
           ? eq(idempotencyKeys.organizerId, ctx.organizerId)
-          : ctx.participantScope != null
-            ? eq(idempotencyKeys.participantScope, ctx.participantScope)
-            : isNull(idempotencyKeys.participantScope),
+          : and(
+              isNull(idempotencyKeys.organizerId),
+              ctx.participantScope != null
+                ? eq(idempotencyKeys.participantScope, ctx.participantScope)
+                : isNull(idempotencyKeys.participantScope),
+            ),
       ),
     )
     .limit(1);
