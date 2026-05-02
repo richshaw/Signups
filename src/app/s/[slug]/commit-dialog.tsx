@@ -63,7 +63,7 @@ export default function CommitDialog({
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const [success, setSuccess] = useState<{ editUrl: string } | null>(null);
+  const [success, setSuccess] = useState<{ commitmentId: string; editUrl: string } | null>(null);
   const [prefill, setPrefill] = useState<PrefillState | null>(null);
   const [emailValue, setEmailValue] = useState('');
   const [shareCopied, setShareCopied] = useState(false);
@@ -119,7 +119,10 @@ export default function CommitDialog({
         return;
       }
       writePrefill({ name, email });
-      setSuccess({ editUrl: payload.data.editUrl });
+      setSuccess({
+        commitmentId: payload.data.commitment.id,
+        editUrl: payload.data.editUrl,
+      });
       // Don't refresh server state yet — that would re-render the parent and
       // replace this dialog (slot row swaps to "Edit" once cookie is read),
       // dismissing the success view with its calendar/share affordances.
@@ -144,7 +147,7 @@ export default function CommitDialog({
     if (!slotAt || !success) return;
     const start = new Date(slotAt);
     const ics = buildIcs({
-      uid: `${success.editUrl.split('/').slice(-1)[0] ?? 'opensignup'}@opensignup.org`,
+      uid: `${success.commitmentId}@opensignup.org`,
       title: `${signupTitle} — ${slotTitle}`,
       description: `Edit or cancel: ${success.editUrl}`,
       url: success.editUrl,

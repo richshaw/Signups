@@ -15,12 +15,21 @@ import SignupView, { type SignupViewField, type SignupViewSlot } from './signup-
 
 type PageParams = { params: Promise<{ slug: string }> };
 
+function trimToBoundary(value: string | null | undefined, max: number): string | null {
+  if (!value) return null;
+  if (value.length <= max) return value;
+  const sliced = value.slice(0, max);
+  const lastSpace = sliced.search(/\s\S*$/);
+  const trimmed = (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced).trimEnd();
+  return trimmed.length > 0 ? `${trimmed}…` : sliced;
+}
+
 export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
   const { slug } = await params;
   const result = await loadPublicSignup(slug);
   if (!result.ok) return { title: 'Sign up' };
   const sig = result.value;
-  const description = sig.description?.slice(0, 200) ?? 'Sign up via OpenSignup';
+  const description = trimToBoundary(sig.description, 200) ?? 'Sign up via OpenSignup';
   return {
     title: sig.title,
     description,

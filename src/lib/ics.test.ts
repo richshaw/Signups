@@ -67,6 +67,31 @@ describe('buildIcs', () => {
     expect(ics).not.toContain('URL');
   });
 
+  it('folds lines longer than 75 octets per RFC 5545', () => {
+    const longDescription = 'x'.repeat(200);
+    const ics = buildIcs({
+      uid: 'com_x@opensignup.org',
+      title: 'Pickup',
+      description: longDescription,
+      start: new Date('2026-05-02T15:00:00Z'),
+      now: new Date('2026-04-30T12:00:00Z'),
+    });
+    for (const physical of ics.split('\r\n')) {
+      expect(Buffer.byteLength(physical, 'utf8')).toBeLessThanOrEqual(75);
+    }
+    expect(ics).toMatch(/\r\n /);
+  });
+
+  it('does not fold lines that fit under 75 octets', () => {
+    const ics = buildIcs({
+      uid: 'com_x@opensignup.org',
+      title: 'Short',
+      start: new Date('2026-05-02T15:00:00Z'),
+      now: new Date('2026-04-30T12:00:00Z'),
+    });
+    expect(ics).not.toMatch(/\r\n /);
+  });
+
   it('includes optional URL and LOCATION', () => {
     const ics = buildIcs({
       uid: 'com_x@opensignup.org',
