@@ -423,11 +423,34 @@ export async function cancelOwnCommitment(
   if (!gotten.ok) return gotten;
   const current = gotten.value;
 
-  await db.transaction(async (tx) => {
-    await tx
+  return db.transaction(async (tx) => {
+    const cancelled = await tx
       .update(commitments)
       .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
-      .where(eq(commitments.id, commitmentId));
+      .where(
+        and(
+          eq(commitments.id, commitmentId),
+          or(
+            eq(commitments.status, 'confirmed'),
+            eq(commitments.status, 'tentative'),
+            eq(commitments.status, 'waitlist'),
+          ),
+        ),
+      )
+      .returning({ id: commitments.id });
+    if (cancelled.length === 0) {
+      // Idempotent: cancelling an already-cancelled commitment (retry or lost race)
+      // is a no-op success. Other terminal states (no_show, orphaned) are organizer-
+      // applied; reject those. Re-read inside the tx so we don't trust the stale
+      // pre-flight read in the concurrent case.
+      const [row] = await tx
+        .select({ status: commitments.status })
+        .from(commitments)
+        .where(eq(commitments.id, commitmentId))
+        .limit(1);
+      if (row?.status === 'cancelled') return ok({ cancelled: true });
+      return err(serviceError('conflict', 'commitment is not active'));
+    }
     await recordActivity(tx, {
       signupId: current.signupId,
       workspaceId: current.workspaceId,
@@ -435,8 +458,8 @@ export async function cancelOwnCommitment(
       eventType: 'commitment.cancelled',
       payload: { commitmentId },
     });
+    return ok({ cancelled: true });
   });
-  return ok({ cancelled: true });
 }
 
 export async function listCommitmentsForSignup(db: Db, signupId: string) {
