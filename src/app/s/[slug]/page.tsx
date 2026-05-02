@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/db/client';
@@ -9,16 +10,45 @@ import {
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
 import { getOwnCommitmentsForSignup } from '@/services/commitments';
-import { getPublicSignup } from '@/services/signups';
+import { loadPublicSignup } from '@/services/signups.cached';
 import SignupView, { type SignupViewField, type SignupViewSlot } from './signup-view';
-
-export const metadata = { title: 'Sign up' };
 
 type PageParams = { params: Promise<{ slug: string }> };
 
+function trimToBoundary(value: string | null | undefined, max: number): string | null {
+  if (!value) return null;
+  if (value.length <= max) return value;
+  const sliced = value.slice(0, max);
+  const lastSpace = sliced.search(/\s\S*$/);
+  const trimmed = (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced).trimEnd();
+  return trimmed.length > 0 ? `${trimmed}…` : sliced;
+}
+
+export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
+  const { slug } = await params;
+  const result = await loadPublicSignup(slug);
+  if (!result.ok) return { title: 'Sign up' };
+  const sig = result.value;
+  const description = trimToBoundary(sig.description, 200) ?? 'Sign up via OpenSignup';
+  return {
+    title: sig.title,
+    description,
+    openGraph: {
+      title: sig.title,
+      description,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: sig.title,
+      description,
+    },
+  };
+}
+
 export default async function PublicSignupPage({ params }: PageParams) {
   const { slug } = await params;
-  const result = await getPublicSignup(getDb(), slug);
+  const result = await loadPublicSignup(slug);
   if (!result.ok) {
     const received = result.error.received;
     if (received === 'draft' || received === 'archived') {
