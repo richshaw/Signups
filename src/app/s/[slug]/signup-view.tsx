@@ -215,6 +215,8 @@ export default function SignupView({
                           <CommitDialog
                             slotId={slot.id}
                             slotTitle={summary}
+                            slotAt={slot.slotAt}
+                            signupTitle={signup.title}
                             slug={slug}
                           />
                         )}

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/db/client';
@@ -9,16 +10,36 @@ import {
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
 import { getOwnCommitmentsForSignup } from '@/services/commitments';
-import { getPublicSignup } from '@/services/signups';
+import { loadPublicSignup } from '@/services/signups.cached';
 import SignupView, { type SignupViewField, type SignupViewSlot } from './signup-view';
-
-export const metadata = { title: 'Sign up' };
 
 type PageParams = { params: Promise<{ slug: string }> };
 
+export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
+  const { slug } = await params;
+  const result = await loadPublicSignup(slug);
+  if (!result.ok) return { title: 'Sign up' };
+  const sig = result.value;
+  const description = sig.description?.slice(0, 200) ?? 'Sign up via OpenSignup';
+  return {
+    title: sig.title,
+    description,
+    openGraph: {
+      title: sig.title,
+      description,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: sig.title,
+      description,
+    },
+  };
+}
+
 export default async function PublicSignupPage({ params }: PageParams) {
   const { slug } = await params;
-  const result = await getPublicSignup(getDb(), slug);
+  const result = await loadPublicSignup(slug);
   if (!result.ok) {
     const received = result.error.received;
     if (received === 'draft' || received === 'archived') {
