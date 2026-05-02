@@ -10,10 +10,6 @@ export default function CheckEmailPage() {
           minutes.
         </p>
       </div>
-      <p className="text-ink-soft text-sm">
-        Dev: with <code className="font-mono">EMAIL_TRANSPORT=console</code>, the link is logged to
-        the server console.
-      </p>
     </main>
   );
 }
