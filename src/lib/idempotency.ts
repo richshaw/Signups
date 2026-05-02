@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { idempotencyKeys } from '@/db/schema/idempotency';
 import type { Db } from '@/db/client';
 import { makeId } from './ids';
@@ -22,9 +22,11 @@ export async function findReplay(
     .where(
       and(
         eq(idempotencyKeys.key, ctx.key),
-        ctx.organizerId
+        ctx.organizerId != null
           ? eq(idempotencyKeys.organizerId, ctx.organizerId)
-          : eq(idempotencyKeys.participantScope, ctx.participantScope ?? ''),
+          : ctx.participantScope != null
+            ? eq(idempotencyKeys.participantScope, ctx.participantScope)
+            : isNull(idempotencyKeys.participantScope),
       ),
     )
     .limit(1);
