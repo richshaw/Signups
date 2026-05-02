@@ -248,8 +248,9 @@ export async function updateOwnCommitment(
         .from(slots)
         .where(eq(slots.id, swapToSlotId))
         .limit(1);
-      if (!target[0]) return err(serviceError('not_found', 'target slot not found'));
-      if (target[0].signupId !== current.signupId) {
+      const targetRow = target[0];
+      if (!targetRow) return err(serviceError('not_found', 'target slot not found'));
+      if (targetRow.signupId !== current.signupId) {
         return err(serviceError('forbidden', 'cannot swap to a slot in a different signup'));
       }
 
