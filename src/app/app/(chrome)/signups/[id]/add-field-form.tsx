@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
 
 interface AddFieldFormProps {
   action: (formData: FormData) => void | Promise<void>;
@@ -42,12 +43,12 @@ export default function AddFieldForm({ action }: AddFieldFormProps) {
       <label className="flex min-h-[42px] items-center justify-center gap-2 text-sm">
         <input type="checkbox" name="required" defaultChecked /> Required
       </label>
-      <button
-        type="submit"
-        className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+      <AsyncSubmitButton
+        loadingLabel="Adding…"
+        className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90"
       >
         Add field
-      </button>
+      </AsyncSubmitButton>
       {fieldType === 'enum' ? (
         <label className="block sm:col-span-4">
           <span className="mb-1 block text-sm font-medium">Choices (one per line)</span>

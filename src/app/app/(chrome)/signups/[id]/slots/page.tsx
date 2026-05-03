@@ -6,6 +6,7 @@ import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { listCommitmentsForSignup } from '@/services/commitments';
 import type { SlotFieldDefinition } from '@/schemas/slot-fields';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
 import { addSlotAction, deleteSlotAction } from '../actions';
 
 type PageParams = { params: Promise<{ id: string }> };
@@ -120,12 +121,12 @@ export default async function SlotsTab({ params }: PageParams) {
             className="focus:border-brand focus:ring-brand block min-h-[42px] w-full appearance-none rounded-lg border border-surface-sunk bg-white px-3 py-2 focus:outline-none focus:ring-1"
           />
         </label>
-        <button
-          type="submit"
-          className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 sm:col-span-2 sm:justify-self-start"
+        <AsyncSubmitButton
+          loadingLabel="Adding…"
+          className="bg-brand rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90 sm:col-span-2 sm:justify-self-start"
         >
           Add slot
-        </button>
+        </AsyncSubmitButton>
       </form>
 
       {sig.slots.length === 0 ? (
@@ -153,12 +154,12 @@ export default async function SlotsTab({ params }: PageParams) {
                 </div>
                 <form action={deleteSlotAction.bind(null, id)}>
                   <input type="hidden" name="slotId" value={slot.id} />
-                  <button
-                    type="submit"
-                    className="text-danger text-sm transition hover:underline"
+                  <AsyncSubmitButton
+                    loadingLabel="Removing…"
+                    className="text-danger text-sm transition hover:underline disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Remove
-                  </button>
+                  </AsyncSubmitButton>
                 </form>
               </li>
             );

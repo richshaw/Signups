@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Download, Eye } from 'lucide-react';
 import { PublicLinkChip } from '@/components/PublicLinkChip';
 import { StatusPill } from '@/components/status-pill';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
 
 interface SignupHeaderProps {
   signupId: string;
@@ -56,22 +57,22 @@ export function SignupHeader({
           </Link>
           {status === 'draft' ? (
             <form action={publishAction}>
-              <button
-                type="submit"
-                className="bg-brand inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+              <AsyncSubmitButton
+                loadingLabel="Publishing…"
+                className="bg-brand inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90"
               >
                 Publish
-              </button>
+              </AsyncSubmitButton>
             </form>
           ) : null}
           {status === 'open' ? (
             <form action={closeAction}>
-              <button
-                type="submit"
-                className="bg-brand inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+              <AsyncSubmitButton
+                loadingLabel="Closing…"
+                className="bg-brand inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90"
               >
                 Close signup
-              </button>
+              </AsyncSubmitButton>
             </form>
           ) : null}
         </div>
