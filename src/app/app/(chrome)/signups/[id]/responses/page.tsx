@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
@@ -28,13 +29,15 @@ export default async function ResponsesTab({ params }: PageParams) {
   const result = await loadSignupForOrganizer(toActor(session), id);
   if (!result.ok) return null;
   const sig = result.value;
-  void recordOrganizerView({
-    actor: { actorId: session.organizerId, actorType: 'organizer' },
-    signupId: sig.id,
-    workspaceId: sig.workspaceId,
-    eventType: 'signup.editor_opened',
-    payload: { section: 'responses' },
-  });
+  after(() =>
+    recordOrganizerView({
+      actor: { actorId: session.organizerId, actorType: 'organizer' },
+      signupId: sig.id,
+      workspaceId: sig.workspaceId,
+      eventType: 'signup.editor_opened',
+      payload: { section: 'responses' },
+    }),
+  );
   const commitments = await listCommitmentsForSignup(getDb(), id);
 
   return (

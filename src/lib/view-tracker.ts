@@ -36,15 +36,16 @@ async function writeActivity(args: {
   eventType: ActivityEvent;
   payload?: Record<string, unknown>;
 }): Promise<void> {
-  await getDb().transaction((tx) =>
-    recordActivity(tx, {
-      signupId: args.signupId,
-      workspaceId: args.workspaceId,
-      actor: args.actor,
-      eventType: args.eventType,
-      payload: args.payload ?? {},
-    }),
-  );
+  // Single insert — no BEGIN/COMMIT wrapper. The activity log writes-in-tx rule
+  // applies when the activity row describes a mutation in the same tx; these
+  // helpers fire standalone telemetry.
+  await recordActivity(getDb(), {
+    signupId: args.signupId,
+    workspaceId: args.workspaceId,
+    actor: args.actor,
+    eventType: args.eventType,
+    payload: args.payload ?? {},
+  });
 }
 
 export async function recordPublicView(args: {

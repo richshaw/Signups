@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOwnCommitment } from '@/services/commitments';
 import { recordEditLinkFollowed } from '@/lib/view-tracker';
@@ -19,12 +20,14 @@ export default async function CommitmentEditPage({ params, searchParams }: PageP
   if (!result.ok) notFound();
   const c = result.value;
 
-  void recordEditLinkFollowed({
-    signupId: c.signupId,
-    workspaceId: c.workspaceId,
-    commitmentId: c.id,
-    participantId: c.participantId,
-  });
+  after(() =>
+    recordEditLinkFollowed({
+      signupId: c.signupId,
+      workspaceId: c.workspaceId,
+      commitmentId: c.id,
+      participantId: c.participantId,
+    }),
+  );
 
   return (
     <main className="container-tight flex min-h-[100svh] flex-col gap-6 py-8">

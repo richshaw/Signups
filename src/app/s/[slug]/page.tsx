@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { commitmentEditUrl } from '@/lib/links';
 import {
@@ -89,12 +90,14 @@ export default async function PublicSignupPage({ params }: PageParams) {
     participantName: c.participantName,
   }));
 
-  void recordPublicView({
-    signupId: sig.id,
-    workspaceId: sig.workspaceId,
-    signupStatus: sig.status,
-    isReturning: ownCommitments.length > 0,
-  });
+  after(() =>
+    recordPublicView({
+      signupId: sig.id,
+      workspaceId: sig.workspaceId,
+      signupStatus: sig.status,
+      isReturning: ownCommitments.length > 0,
+    }),
+  );
 
   const slots: SignupViewSlot[] = sig.slots.map((slot) => ({
     id: slot.id,

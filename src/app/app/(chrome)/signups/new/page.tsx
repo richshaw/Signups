@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { createSignup } from '@/services/signups';
@@ -11,12 +12,15 @@ export default async function NewSignupPage() {
   if (!session) redirect('/login?callbackUrl=/app/signups/new');
 
   if (session.defaultWorkspaceId) {
-    void recordOrganizerView({
-      actor: { actorId: session.organizerId, actorType: 'organizer' },
-      signupId: null,
-      workspaceId: session.defaultWorkspaceId,
-      eventType: 'signup.draft_started',
-    });
+    const workspaceId = session.defaultWorkspaceId;
+    after(() =>
+      recordOrganizerView({
+        actor: { actorId: session.organizerId, actorType: 'organizer' },
+        signupId: null,
+        workspaceId,
+        eventType: 'signup.draft_started',
+      }),
+    );
   }
 
   async function createAction(formData: FormData) {

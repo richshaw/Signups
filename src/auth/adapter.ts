@@ -8,6 +8,7 @@ import { workspaces } from '@/db/schema/workspaces';
 import { accounts, sessions, verificationTokens } from '@/db/schema/auth';
 import { recordActivity } from '@/lib/activity';
 import { makeId } from '@/lib/ids';
+import { log } from '@/lib/log';
 import { toSlug } from '@/lib/slug';
 
 /**
@@ -28,9 +29,9 @@ export function SignupAdapter() {
     ...base,
     async createUser(user: AdapterUser): Promise<AdapterUser> {
       if (!base.createUser) throw new Error('adapter missing createUser');
-      const inserted = await db.transaction(async (tx) => {
+      const { row, workspaceId } = await db.transaction(async (tx) => {
         const organizerId = makeId('org');
-        const [row] = await tx
+        const [orgRow] = await tx
           .insert(organizers)
           .values({
             id: organizerId,
@@ -40,47 +41,58 @@ export function SignupAdapter() {
             image: user.image ?? null,
           })
           .returning();
-        if (!row) throw new Error('failed to insert organizer');
+        if (!orgRow) throw new Error('failed to insert organizer');
 
-        const workspaceId = makeId('ws');
-        const baseSlug = toSlug(row.name ?? row.email.split('@')[0] ?? 'me', { suffix: true });
+        const newWorkspaceId = makeId('ws');
+        const baseSlug = toSlug(orgRow.name ?? orgRow.email.split('@')[0] ?? 'me', {
+          suffix: true,
+        });
         await tx.insert(workspaces).values({
-          id: workspaceId,
+          id: newWorkspaceId,
           slug: baseSlug,
-          name: row.name ?? row.email,
+          name: orgRow.name ?? orgRow.email,
           type: 'personal',
           plan: 'free',
         });
 
         await tx.insert(workspaceMembers).values({
           id: makeId('mem'),
-          workspaceId,
-          organizerId: row.id,
+          workspaceId: newWorkspaceId,
+          organizerId: orgRow.id,
           role: 'owner',
           status: 'active',
         });
 
         await tx
           .update(organizers)
-          .set({ defaultWorkspaceId: workspaceId })
-          .where(eq(organizers.id, row.id));
+          .set({ defaultWorkspaceId: newWorkspaceId })
+          .where(eq(organizers.id, orgRow.id));
 
-        await recordActivity(tx, {
+        return { row: orgRow, workspaceId: newWorkspaceId };
+      });
+
+      // Best-effort telemetry, written outside the onboarding transaction.
+      // A failed activity insert here would have aborted the whole tx (a
+      // failed statement inside a Postgres tx poisons subsequent queries),
+      // so it lives outside and is wrapped in try/catch.
+      try {
+        await recordActivity(db, {
           signupId: null,
           workspaceId,
           actor: { actorId: row.id, actorType: 'organizer' },
           eventType: 'workspace.created',
           payload: { kind: 'personal' },
         });
+      } catch (err) {
+        log.warn({ err }, 'recordActivity workspace.created failed');
+      }
 
-        return row;
-      });
       return {
-        id: inserted.id,
-        email: inserted.email,
-        emailVerified: inserted.emailVerified,
-        name: inserted.name,
-        image: inserted.image,
+        id: row.id,
+        email: row.email,
+        emailVerified: row.emailVerified,
+        name: row.name,
+        image: row.image,
       };
     },
   };

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { recordOrganizerView } from '@/lib/view-tracker';
@@ -17,13 +18,15 @@ export default async function SettingsTab({ params, searchParams }: PageParams) 
   const result = await loadSignupForOrganizer(toActor(session), id);
   if (!result.ok) return null;
   const sig = result.value;
-  void recordOrganizerView({
-    actor: { actorId: session.organizerId, actorType: 'organizer' },
-    signupId: sig.id,
-    workspaceId: sig.workspaceId,
-    eventType: 'signup.editor_opened',
-    payload: { section: 'settings' },
-  });
+  after(() =>
+    recordOrganizerView({
+      actor: { actorId: session.organizerId, actorType: 'organizer' },
+      signupId: sig.id,
+      workspaceId: sig.workspaceId,
+      eventType: 'signup.editor_opened',
+      payload: { section: 'settings' },
+    }),
+  );
 
   return (
     <section className="max-w-2xl space-y-6">
