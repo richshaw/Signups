@@ -53,7 +53,7 @@ Helpers used by every service:
 - `src/lib/result.ts` — `Result<T, E>`, `ok`, `err`. Services return `Result`; route handlers convert to HTTP via `api-response.ts`.
 - `src/lib/errors.ts` — `ServiceError` with `code` from a closed enum (`not_found | conflict | capacity_full | closed | forbidden | unauthorized | invalid_input | rate_limited | already_consumed | internal`), `httpStatusFor`, `fromZodError`, `ServiceException` (thrown by guards).
 - `src/lib/parse.ts` — wraps Zod parsing into a `Result`.
-- `src/lib/activity.ts` — `recordActivity(tx, …)` writes to the append-only activity log **inside the same transaction** as the mutation it describes.
+- `src/lib/activity.ts` — `recordActivity(tx, …)` writes to the append-only activity log **inside the same transaction** as the mutation it describes. Telemetry-only events (no describing mutation) write outside a tx; see `src/lib/view-tracker.ts` and `safeRecordAttemptFailed` in `src/services/commitments.ts`.
 - `src/lib/ids.ts` — UUIDv7 + base62 + 3–4 char type prefix (`sig_`, `slot_`, `org_`, `ws_`, `mem_`, `com_`, `par_`).
 - `src/lib/idempotency.ts`, `src/lib/rate-limit.ts` — Postgres-backed (no Redis); applied at API boundaries.
 
@@ -96,7 +96,7 @@ From `CONTRIBUTING.md` and the v1 plan:
 - **Workspace scoping at the policy layer.** No raw DB query in a service without a `requireWorkspaceAccess` / `requireWorkspaceWrite` upstream.
 - **TDD for pure logic** (capacity, slugs, IDs, email-typo suggestion, policy, env). UI is not TDD'd; covered by Playwright smokes.
 - **No vendor lock-in.** Anything requiring an external account (Resend, Sentry, PostHog) must be opt-in via env var with a console/noop default.
-- **Activity log is append-only and writes inside the same transaction as the mutation.**
+- **Activity log is append-only and writes inside the same transaction as the mutation.** Telemetry-only events that don't describe a mutation (page views, auth funnel, attempt-failed) are an exception: write them outside the tx (or via a SAVEPOINT helper if the only entry point is inside one) so a transient activity-insert failure never aborts the user's actual operation. See `safeRecordAttemptFailed` in `src/services/commitments.ts` and the `workspace.created` write in `src/auth/adapter.ts` for the patterns.
 - **`pnpm lint && pnpm typecheck && pnpm test` must pass before any PR.**
 
 ## Test layout
