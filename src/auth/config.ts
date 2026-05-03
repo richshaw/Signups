@@ -33,10 +33,12 @@ function buildConfig(): NextAuthConfig {
           const subject = identifier.trim().toLowerCase();
           const ip = getRequestIp();
           try {
+            // IP bucket first: a misbehaving IP exhausts its own quota
+            // before it can degrade any victim's per-email quota. Null IPs
+            // share an "unknown" bucket so deployments missing
+            // x-forwarded-for / x-real-ip don't silently no-op.
+            await consumeRateLimit(getDb(), RateLimits.magicLinkPerIp, ip ?? 'unknown');
             await consumeRateLimit(getDb(), RateLimits.magicLinkPerEmail, subject);
-            if (ip) {
-              await consumeRateLimit(getDb(), RateLimits.magicLinkPerIp, ip);
-            }
           } catch (err) {
             if (err instanceof ServiceException && err.serviceError.code === 'rate_limited') {
               log.warn(
