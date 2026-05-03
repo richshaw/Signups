@@ -46,29 +46,29 @@ export function requireOrganizerId(actor: Actor): string {
   return actor.id;
 }
 
-export function requireWorkspaceAccess(actor: Actor, workspaceId: string | null): void {
-  if (workspaceId === null) return; // guest-scope, only covered by ownership checks elsewhere
+export function requireWorkspaceAccess(actor: Actor, workspaceId: string | null): WorkspaceRole | null {
+  if (workspaceId === null) return null; // guest-scope, only covered by ownership checks elsewhere
   requireOrganizer(actor);
-  if (!isInWorkspace(actor, workspaceId)) {
+  const role = workspaceRole(actor, workspaceId);
+  if (!role) {
     throw new ServiceException(
       serviceError('forbidden', 'not a member of that workspace', {
         suggestion: 'switch to the correct workspace or ask an owner to invite you',
       }),
     );
   }
+  return role;
 }
 
 export function requireWorkspaceWrite(actor: Actor, workspaceId: string | null): void {
-  requireWorkspaceAccess(actor, workspaceId);
-  if (workspaceId && actor.kind === 'organizer') {
-    const role = workspaceRole(actor, workspaceId);
-    if (!role || !ROLE_CAN_WRITE[role]) {
-      throw new ServiceException(
-        serviceError('forbidden', 'your role cannot modify this workspace', {
-          suggestion: 'ask an owner or editor',
-        }),
-      );
-    }
+  const role = requireWorkspaceAccess(actor, workspaceId);
+  if (role === null) return;
+  if (!ROLE_CAN_WRITE[role]) {
+    throw new ServiceException(
+      serviceError('forbidden', 'your role cannot modify this workspace', {
+        suggestion: 'ask an owner or editor',
+      }),
+    );
   }
 }
 
