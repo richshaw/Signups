@@ -6,8 +6,10 @@ import { renderEmail } from '@/email/render';
 import { getEmailTransport } from '@/email';
 import { MagicLinkEmail } from '@/email/templates/magic-link';
 import { recordActivity } from '@/lib/activity';
+import { getEnv } from '@/lib/env';
 import { log } from '@/lib/log';
 import { SignupAdapter } from './adapter';
+import { canonicalizeMagicLinkUrl } from './magic-link-url';
 
 // Built lazily on first request: SignupAdapter() touches getDb() → getEnv(),
 // which would otherwise fire at module-load and break `next build`'s page-data
@@ -31,7 +33,12 @@ function buildConfig(): NextAuthConfig {
             1,
             Math.round((expires.getTime() - Date.now()) / 60_000),
           );
-          const node = createElement(MagicLinkEmail, { url, email: identifier, expiresInMinutes });
+          const safeUrl = canonicalizeMagicLinkUrl(url, getEnv().AUTH_URL);
+          const node = createElement(MagicLinkEmail, {
+            url: safeUrl,
+            email: identifier,
+            expiresInMinutes,
+          });
           const { html, text } = await renderEmail(node);
           await getEmailTransport().send({
             to: identifier,
