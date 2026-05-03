@@ -20,7 +20,8 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const session = await getOrganizerSession();
-  if (session) redirect(safeCallbackUrl(params.callbackUrl));
+  const callbackUrl = safeCallbackUrl(params.callbackUrl);
+  if (session) redirect(callbackUrl);
 
   async function handle(formData: FormData): Promise<LoginActionResult> {
     'use server';
@@ -29,7 +30,7 @@ export default async function LoginPage({
     if (!parsed.success) return { ok: false, reason: 'invalid_email' };
     const email = parsed.data;
     try {
-      await signIn('nodemailer', { email, redirect: false });
+      await signIn('nodemailer', { email, redirect: false, redirectTo: callbackUrl });
       return { ok: true, email };
     } catch (error) {
       log.error({ err: error }, 'login: signIn failed');
