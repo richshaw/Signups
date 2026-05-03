@@ -11,6 +11,7 @@ import {
 } from '@/lib/returning-participant';
 import { serviceError } from '@/lib/errors';
 import { commitmentEditUrl, link } from '@/lib/links';
+import { consumeRateLimit, RateLimits } from '@/lib/rate-limit';
 import { commitToSlot } from '@/services/commitments';
 
 export async function POST(
@@ -21,6 +22,11 @@ export async function POST(
     const { id: slotId } = await ctx.params;
     const body = await req.json().catch(() => ({}));
     const db = getDb();
+    const clientIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      req.headers.get('x-real-ip') ??
+      'unknown';
+    await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp);
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
 
