@@ -6,6 +6,7 @@ import { organizers } from '@/db/schema/organizers';
 import { workspaceMembers } from '@/db/schema/members';
 import { workspaces } from '@/db/schema/workspaces';
 import { accounts, sessions, verificationTokens } from '@/db/schema/auth';
+import { recordActivity } from '@/lib/activity';
 import { makeId } from '@/lib/ids';
 import { toSlug } from '@/lib/slug';
 
@@ -63,6 +64,14 @@ export function SignupAdapter() {
           .update(organizers)
           .set({ defaultWorkspaceId: workspaceId })
           .where(eq(organizers.id, row.id));
+
+        await recordActivity(tx, {
+          signupId: null,
+          workspaceId,
+          actor: { actorId: row.id, actorType: 'organizer' },
+          eventType: 'workspace.created',
+          payload: { kind: 'personal' },
+        });
 
         return row;
       });

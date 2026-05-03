@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getDb } from '@/db/client';
 import { getOwnCommitment } from '@/services/commitments';
+import { recordEditLinkFollowed } from '@/lib/view-tracker';
 import EditForm from './edit-form';
 
 export const metadata = { title: 'Your signup' };
@@ -17,6 +18,13 @@ export default async function CommitmentEditPage({ params, searchParams }: PageP
   const result = await getOwnCommitment(getDb(), id, token);
   if (!result.ok) notFound();
   const c = result.value;
+
+  void recordEditLinkFollowed({
+    signupId: c.signupId,
+    workspaceId: c.workspaceId,
+    commitmentId: c.id,
+    participantId: c.participantId,
+  });
 
   return (
     <main className="container-tight flex min-h-[100svh] flex-col gap-6 py-8">

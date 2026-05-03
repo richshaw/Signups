@@ -5,6 +5,7 @@ import { getOrganizerSession, toActor } from '@/auth/session';
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
 import { getSignupForOrganizer } from '@/services/signups';
+import { recordOrganizerView } from '@/lib/view-tracker';
 import SignupView, {
   type SignupViewField,
   type SignupViewSlot,
@@ -31,6 +32,13 @@ export default async function SignupPreviewPage({ params }: PageParams) {
     );
   }
   const sig = result.value;
+
+  void recordOrganizerView({
+    actor: { actorId: session.organizerId, actorType: 'organizer' },
+    signupId: sig.id,
+    workspaceId: sig.workspaceId,
+    eventType: 'signup.previewed',
+  });
 
   const slots: SignupViewSlot[] = sig.slots.map((slot) => ({
     id: slot.id,

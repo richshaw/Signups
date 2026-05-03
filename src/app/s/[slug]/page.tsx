@@ -7,6 +7,7 @@ import {
   COMMIT_COOKIE_NAME,
   parseReturningCommits,
 } from '@/lib/returning-participant';
+import { recordPublicView } from '@/lib/view-tracker';
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
 import { getOwnCommitmentsForSignup } from '@/services/commitments';
@@ -87,6 +88,13 @@ export default async function PublicSignupPage({ params }: PageParams) {
     editUrl: commitmentEditUrl(slug, c.id, tokenById.get(c.id) ?? ''),
     participantName: c.participantName,
   }));
+
+  void recordPublicView({
+    signupId: sig.id,
+    workspaceId: sig.workspaceId,
+    signupStatus: sig.status,
+    isReturning: ownCommitments.length > 0,
+  });
 
   const slots: SignupViewSlot[] = sig.slots.map((slot) => ({
     id: slot.id,

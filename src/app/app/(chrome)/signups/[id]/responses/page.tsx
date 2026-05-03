@@ -4,6 +4,7 @@ import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { listCommitmentsForSignup } from '@/services/commitments';
 import type { SlotFieldDefinition } from '@/schemas/slot-fields';
+import { recordOrganizerView } from '@/lib/view-tracker';
 
 type PageParams = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,13 @@ export default async function ResponsesTab({ params }: PageParams) {
   const result = await loadSignupForOrganizer(toActor(session), id);
   if (!result.ok) return null;
   const sig = result.value;
+  void recordOrganizerView({
+    actor: { actorId: session.organizerId, actorType: 'organizer' },
+    signupId: sig.id,
+    workspaceId: sig.workspaceId,
+    eventType: 'signup.editor_opened',
+    payload: { section: 'responses' },
+  });
   const commitments = await listCommitmentsForSignup(getDb(), id);
 
   return (

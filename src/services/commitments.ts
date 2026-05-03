@@ -43,6 +43,13 @@ export async function commitToSlot(
     const slot = slotRows[0];
     if (!slot) return err(serviceError('not_found', 'slot not found'));
     if (slot.status !== 'open') {
+      await recordActivity(tx, {
+        signupId: slot.signupId,
+        workspaceId: slot.workspaceId,
+        actor: { actorId: null, actorType: 'system' },
+        eventType: 'commitment.attempt_failed',
+        payload: { slotId, reason: 'closed', detail: 'slot_closed' },
+      });
       return err(serviceError('closed', 'that slot is closed'));
     }
 
@@ -54,6 +61,13 @@ export async function commitToSlot(
     const signupRow = signupRows[0];
     if (!signupRow) return err(serviceError('not_found', 'signup missing'));
     if (signupRow.status !== 'open') {
+      await recordActivity(tx, {
+        signupId: signupRow.id,
+        workspaceId: signupRow.workspaceId,
+        actor: { actorId: null, actorType: 'system' },
+        eventType: 'commitment.attempt_failed',
+        payload: { slotId, reason: 'closed', detail: `signup_${signupRow.status}` },
+      });
       return err(
         serviceError('closed', 'signup is not accepting commitments', {
           field: 'status',
@@ -63,6 +77,13 @@ export async function commitToSlot(
       );
     }
     if (signupRow.closesAt && signupRow.closesAt.getTime() < Date.now()) {
+      await recordActivity(tx, {
+        signupId: signupRow.id,
+        workspaceId: signupRow.workspaceId,
+        actor: { actorId: null, actorType: 'system' },
+        eventType: 'commitment.attempt_failed',
+        payload: { slotId, reason: 'over_window', detail: 'closes_at_elapsed' },
+      });
       return err(serviceError('closed', 'signup has closed'));
     }
 
@@ -71,6 +92,13 @@ export async function commitToSlot(
     if (slot.slotAt && settings.lockoutHoursBeforeSlot && settings.lockoutHoursBeforeSlot > 0) {
       const lockoutMs = settings.lockoutHoursBeforeSlot * 3600 * 1000;
       if (Date.now() > slot.slotAt.getTime() - lockoutMs) {
+        await recordActivity(tx, {
+          signupId: signupRow.id,
+          workspaceId: signupRow.workspaceId,
+          actor: { actorId: null, actorType: 'system' },
+          eventType: 'commitment.attempt_failed',
+          payload: { slotId, reason: 'over_window', detail: 'slot_lockout' },
+        });
         return err(serviceError('closed', 'too close to the slot time to sign up'));
       }
     }
@@ -151,6 +179,18 @@ export async function commitToSlot(
         .where(and(eq(slots.signupId, slot.signupId), eq(slots.status, 'open'), ne(slots.id, slotId)))
         .orderBy(asc(slots.slotAt), asc(slots.sortOrder))
         .limit(3);
+      await recordActivity(tx, {
+        signupId: slot.signupId,
+        workspaceId: slot.workspaceId,
+        actor: { actorId: null, actorType: 'system' },
+        eventType: 'commitment.attempt_failed',
+        payload: {
+          slotId,
+          reason: 'capacity_full',
+          requested: data.quantity,
+          remaining,
+        },
+      });
       return err(
         serviceError(
           'capacity_full',
@@ -366,6 +406,19 @@ export async function updateOwnCommitment(
         const otherQty = sumRows[0]?.sum ?? 0;
         if (otherQty + data.quantity > cap) {
           const remaining = Math.max(0, cap - otherQty);
+          await recordActivity(tx, {
+            signupId: current.signupId,
+            workspaceId: current.workspaceId,
+            actor: { actorId: current.participantId, actorType: 'participant' },
+            eventType: 'commitment.attempt_failed',
+            payload: {
+              slotId: current.slotId,
+              reason: 'capacity_full',
+              source: 'update',
+              requested: data.quantity,
+              remaining,
+            },
+          });
           return err(
             serviceError(
               'capacity_full',
