@@ -29,23 +29,3 @@ export const DateOnlySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
-export const PaginationSchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(50),
-  cursor: z.string().optional(),
-});
-
-export const HateoasLinkSchema = z.object({
-  href: z.string(),
-  method: z.enum(['GET', 'POST', 'PATCH', 'DELETE']).default('GET'),
-  rel: z.string().optional(),
-});
-
-export type HateoasLink = z.infer<typeof HateoasLinkSchema>;
-
-export function envelope<T extends z.ZodTypeAny>(data: T) {
-  return z.object({
-    data,
-    _links: z.record(z.string(), HateoasLinkSchema.or(z.string())).optional(),
-    idempotencyKey: z.string().optional(),
-  });
-}
