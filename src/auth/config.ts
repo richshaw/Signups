@@ -1,9 +1,11 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { createElement } from 'react';
+import { getDb } from '@/db/client';
 import { renderEmail } from '@/email/render';
 import { getEmailTransport } from '@/email';
 import { MagicLinkEmail } from '@/email/templates/magic-link';
+import { recordActivity } from '@/lib/activity';
 import { log } from '@/lib/log';
 import { SignupAdapter } from './adapter';
 
@@ -38,6 +40,17 @@ function buildConfig(): NextAuthConfig {
             text,
           });
           log.info({ email: identifier }, 'magic link dispatched');
+          try {
+            await recordActivity(getDb(), {
+              signupId: null,
+              workspaceId: null,
+              actor: { actorId: null, actorType: 'system' },
+              eventType: 'auth.magic_link_sent',
+              payload: { email: identifier, expiresInMinutes },
+            });
+          } catch (err) {
+            log.warn({ err }, 'recordActivity auth.magic_link_sent failed');
+          }
         },
       }),
     ],
@@ -51,6 +64,22 @@ function buildConfig(): NextAuthConfig {
           session.user.id = user.id;
         }
         return session;
+      },
+    },
+    events: {
+      async signIn({ user, isNewUser }) {
+        if (!user?.id) return;
+        try {
+          await recordActivity(getDb(), {
+            signupId: null,
+            workspaceId: null,
+            actor: { actorId: user.id, actorType: 'organizer' },
+            eventType: 'auth.signed_in',
+            payload: { isNewUser: Boolean(isNewUser) },
+          });
+        } catch (err) {
+          log.warn({ err }, 'recordActivity auth.signed_in failed');
+        }
       },
     },
   };
