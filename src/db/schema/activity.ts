@@ -31,6 +31,10 @@ export const ACTIVITY_EVENTS = [
   'signup.archived',
   'signup.duplicated',
   'signup.deleted',
+  'signup.draft_started',
+  'signup.editor_opened',
+  'signup.previewed',
+  'signup.viewed',
   'slot.created',
   'slot.updated',
   'slot.deleted',
@@ -43,9 +47,14 @@ export const ACTIVITY_EVENTS = [
   'commitment.cancelled',
   'commitment.swapped',
   'commitment.orphaned',
+  'commitment.attempt_failed',
+  'commitment.edit_link_followed',
   'reminder.scheduled',
   'reminder.sent',
   'reminder.failed',
+  'auth.magic_link_sent',
+  'auth.signed_in',
+  'workspace.created',
 ] as const;
 
 export type ActivityEvent = (typeof ACTIVITY_EVENTS)[number];
