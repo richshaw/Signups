@@ -60,7 +60,7 @@ export function requireWorkspaceAccess(actor: Actor, workspaceId: string | null)
 
 export function requireWorkspaceWrite(actor: Actor, workspaceId: string | null): void {
   requireWorkspaceAccess(actor, workspaceId);
-  if (workspaceId && actor.kind === 'organizer') {
+  if (workspaceId !== null) {
     const role = workspaceRole(actor, workspaceId);
     if (!role || !ROLE_CAN_WRITE[role]) {
       throw new ServiceException(
