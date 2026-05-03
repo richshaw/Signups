@@ -60,15 +60,14 @@ export function requireWorkspaceAccess(actor: Actor, workspaceId: string | null)
 
 export function requireWorkspaceWrite(actor: Actor, workspaceId: string | null): void {
   requireWorkspaceAccess(actor, workspaceId);
-  if (workspaceId !== null) {
-    const role = workspaceRole(actor, workspaceId);
-    if (!role || !ROLE_CAN_WRITE[role]) {
-      throw new ServiceException(
-        serviceError('forbidden', 'your role cannot modify this workspace', {
-          suggestion: 'ask an owner or editor',
-        }),
-      );
-    }
+  if (workspaceId === null) return;
+  const role = workspaceRole(actor, workspaceId);
+  if (!role || !ROLE_CAN_WRITE[role]) {
+    throw new ServiceException(
+      serviceError('forbidden', 'your role cannot modify this workspace', {
+        suggestion: 'ask an owner or editor',
+      }),
+    );
   }
 }
 
