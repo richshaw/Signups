@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { isIP } from 'node:net';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
 import { signups } from '@/db/schema/signups';
@@ -11,6 +12,7 @@ import {
 } from '@/lib/returning-participant';
 import { serviceError } from '@/lib/errors';
 import { commitmentEditUrl, link } from '@/lib/links';
+import { consumeRateLimit, RateLimits } from '@/lib/rate-limit';
 import { commitToSlot } from '@/services/commitments';
 
 export async function POST(
@@ -19,8 +21,16 @@ export async function POST(
 ) {
   return handle(async () => {
     const { id: slotId } = await ctx.params;
-    const body = await req.json().catch(() => ({}));
     const db = getDb();
+    const rawIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip')?.trim() ||
+      null;
+    const clientIp = rawIp && isIP(rawIp) ? rawIp : null;
+    if (clientIp) {
+      await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp);
+    }
+    const body = await req.json().catch(() => ({}));
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
 

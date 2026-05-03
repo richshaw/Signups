@@ -35,6 +35,7 @@ Run `pnpm test` for unit tests, `pnpm test:db` for integration tests against the
 - Include tests. For service logic, tests are required and go first (TDD).
 - `pnpm lint && pnpm typecheck && pnpm test` must pass locally.
 - UI changes should include a Playwright smoke or a screenshot.
+- If you add or change an `ACTIVITY_EVENTS` entry or its payload shape, update [`docs/telemetry.md`](docs/telemetry.md).
 
 ## Reporting security issues
 

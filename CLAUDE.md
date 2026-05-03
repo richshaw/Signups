@@ -34,6 +34,8 @@ Run a single vitest file: `pnpm test src/lib/policy.test.ts`. Run a single test 
 
 Local Postgres comes from `docker compose up -d` (port **5433**, db/user/password all `signup`). Default `DATABASE_URL` matches.
 
+First-time setup: `pnpm install && cp .env.example .env.local && docker compose up -d && pnpm db:migrate`.
+
 ## Architecture
 
 Next.js 15 App Router monolith, TypeScript strict mode (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`-adjacent flags on). Postgres via Drizzle. Auth.js v5 (magic link). pg-boss for jobs. React Email + pluggable transport. Path alias `@/*` → `src/*`.
@@ -43,8 +45,8 @@ Next.js 15 App Router monolith, TypeScript strict mode (`noUncheckedIndexedAcces
 Every mutation must go through this chain — route handlers stay thin:
 
 1. `src/app/api/.../route.ts` — Next.js handler. Parses request, builds `Actor`, calls service.
-2. `src/services/{signups,slots,commitments}.ts` — pure(-ish) functions `(db, actor, input) => Promise<Result<T, ServiceError>>`. Business rules live here.
-3. `src/lib/policy.ts` — `Actor` (organizer | participant | anonymous), `requireWorkspaceAccess`, `requireWorkspaceWrite`. **No service queries the DB without first calling a policy guard.** Every tenant-table query includes `workspace_id = ?`.
+2. `src/services/{signups,slots,commitments,slot-fields}.ts` — pure(-ish) functions `(db, actor, input) => Promise<Result<T, ServiceError>>`. Business rules live here. Server components read via `src/services/signups.cached.ts`, which wraps service reads in React `cache()` for per-request dedupe — prefer the cached entry points in RSC, raw services elsewhere.
+3. `src/lib/policy.ts` — `Actor` (organizer | participant | anonymous), `requireWorkspaceAccess`, `requireWorkspaceWrite`. **No service queries the DB without first calling a policy guard.** Every tenant-table query includes `workspace_id = ?`. Workspace roles are `owner | admin | editor | viewer`; only `viewer` is read-only — use `requireWorkspaceWrite` for any mutation.
 4. `src/db/client.ts` — `getDb()` returns a Drizzle handle backed by a singleton `postgres` client (cached on `globalThis.__signup_pg__`). `Db | Tx` are interchangeable via `Queryable`.
 5. `src/db/schema/*.ts` — one file per entity, re-exported from `schema/index.ts`. `casing: 'snake_case'` is set in both Drizzle config and client, so TS uses camelCase, SQL uses snake_case.
 
@@ -53,7 +55,7 @@ Helpers used by every service:
 - `src/lib/result.ts` — `Result<T, E>`, `ok`, `err`. Services return `Result`; route handlers convert to HTTP via `api-response.ts`.
 - `src/lib/errors.ts` — `ServiceError` with `code` from a closed enum (`not_found | conflict | capacity_full | closed | forbidden | unauthorized | invalid_input | rate_limited | already_consumed | internal`), `httpStatusFor`, `fromZodError`, `ServiceException` (thrown by guards).
 - `src/lib/parse.ts` — wraps Zod parsing into a `Result`.
-- `src/lib/activity.ts` — `recordActivity(tx, …)` writes to the append-only activity log **inside the same transaction** as the mutation it describes.
+- `src/lib/activity.ts` — `recordActivity(tx, …)` writes to the append-only activity log **inside the same transaction** as the mutation it describes. Telemetry-only events (no describing mutation) write outside a tx; see `src/lib/view-tracker.ts` and `safeRecordAttemptFailed` in `src/services/commitments.ts`.
 - `src/lib/ids.ts` — UUIDv7 + base62 + 3–4 char type prefix (`sig_`, `slot_`, `org_`, `ws_`, `mem_`, `com_`, `par_`).
 - `src/lib/idempotency.ts`, `src/lib/rate-limit.ts` — Postgres-backed (no Redis); applied at API boundaries.
 
@@ -87,6 +89,10 @@ pg-boss runs against the same Postgres (schema `pgboss`). The Next.js server **d
 
 `src/lib/env.ts` parses `process.env` through Zod with `.superRefine` for conditional requirements (e.g. `RESEND_API_KEY` required when `EMAIL_TRANSPORT=resend`). Tests import the pure `parseEnv` function. `getEnv()` lazily parses once at runtime.
 
+### Logging
+
+`src/lib/log.ts` exports a pino logger (`pino-pretty` in dev, JSON in prod). `redact` strips `authorization`, `cookie`, `*.password`, `*.token`, `*.apiKey`, `RESEND_API_KEY`, `SMTP_PASSWORD`. Outside dev, also redact magic-link URLs and any token-bearing query strings before logging. When adding a new secret-shaped field, extend `redact.paths`.
+
 ## Conventions that hurt to violate
 
 From `CONTRIBUTING.md` and the v1 plan:
@@ -96,7 +102,7 @@ From `CONTRIBUTING.md` and the v1 plan:
 - **Workspace scoping at the policy layer.** No raw DB query in a service without a `requireWorkspaceAccess` / `requireWorkspaceWrite` upstream.
 - **TDD for pure logic** (capacity, slugs, IDs, email-typo suggestion, policy, env). UI is not TDD'd; covered by Playwright smokes.
 - **No vendor lock-in.** Anything requiring an external account (Resend, Sentry, PostHog) must be opt-in via env var with a console/noop default.
-- **Activity log is append-only and writes inside the same transaction as the mutation.**
+- **Activity log is append-only and writes inside the same transaction as the mutation.** Telemetry-only events that don't describe a mutation (page views, auth funnel, attempt-failed) are an exception: write them outside the tx (or via a SAVEPOINT helper if the only entry point is inside one) so a transient activity-insert failure never aborts the user's actual operation. See `safeRecordAttemptFailed` in `src/services/commitments.ts` and the `workspace.created` write in `src/auth/adapter.ts` for the patterns.
 - **`pnpm lint && pnpm typecheck && pnpm test` must pass before any PR.**
 
 ## Test layout
