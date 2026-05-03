@@ -20,13 +20,15 @@ export async function POST(
 ) {
   return handle(async () => {
     const { id: slotId } = await ctx.params;
-    const body = await req.json().catch(() => ({}));
     const db = getDb();
     const clientIp =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       req.headers.get('x-real-ip') ??
-      'unknown';
-    await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp);
+      null;
+    if (clientIp) {
+      await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp.slice(0, 45));
+    }
+    const body = await req.json().catch(() => ({}));
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
 
