@@ -7,7 +7,10 @@ import { getEmailTransport } from '@/email';
 import { MagicLinkEmail } from '@/email/templates/magic-link';
 import { recordActivity } from '@/lib/activity';
 import { log } from '@/lib/log';
+import { RateLimits, consumeRateLimit } from '@/lib/rate-limit';
+import { ServiceException } from '@/lib/errors';
 import { SignupAdapter } from './adapter';
+import { getRequestIp } from './request-context';
 
 // Built lazily on first request: SignupAdapter() touches getDb() → getEnv(),
 // which would otherwise fire at module-load and break `next build`'s page-data
@@ -27,6 +30,22 @@ function buildConfig(): NextAuthConfig {
         server: 'smtp://user:pass@localhost:2525',
         from: 'noreply@opensignup.invalid',
         async sendVerificationRequest({ identifier, url, expires }) {
+          const subject = identifier.trim().toLowerCase();
+          const ip = getRequestIp();
+          try {
+            await consumeRateLimit(getDb(), RateLimits.magicLinkPerEmail, subject);
+            if (ip) {
+              await consumeRateLimit(getDb(), RateLimits.magicLinkPerIp, ip);
+            }
+          } catch (err) {
+            if (err instanceof ServiceException && err.serviceError.code === 'rate_limited') {
+              log.warn(
+                { email: subject, ip, bucket: err.serviceError.details?.bucket },
+                'magic link rate-limited',
+              );
+            }
+            throw err;
+          }
           const expiresInMinutes = Math.max(
             1,
             Math.round((expires.getTime() - Date.now()) / 60_000),

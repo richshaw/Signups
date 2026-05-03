@@ -27,9 +27,7 @@ export async function POST(
       req.headers.get('x-real-ip')?.trim() ||
       null;
     const clientIp = rawIp && isIP(rawIp) ? rawIp : null;
-    if (clientIp) {
-      await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp);
-    }
+    await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp ?? 'unknown');
     const body = await req.json().catch(() => ({}));
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
