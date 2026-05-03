@@ -5,6 +5,7 @@ import { activity } from '@/db/schema/activity';
 import { commitments } from '@/db/schema/commitments';
 import { workspaceMembers } from '@/db/schema/members';
 import { organizers } from '@/db/schema/organizers';
+import { signups } from '@/db/schema/signups';
 import { workspaces } from '@/db/schema/workspaces';
 import { makeId } from '@/lib/ids';
 import type { Actor } from '@/lib/policy';
@@ -86,6 +87,36 @@ async function makeOpenSignupWithSlot(fx: Fixture, title: string) {
 
   return { signupId: created.value.id, slotId: slot.value.id };
 }
+
+describe('commitToSlot (db)', () => {
+  let fx: Fixture;
+
+  beforeAll(async () => {
+    fx = await setupWorkspace();
+  });
+
+  afterAll(async () => {
+    await teardownWorkspace(fx.db, fx.workspaceId, fx.organizerId);
+  });
+
+  it('returns signupSlug matching the signup slug', async () => {
+    const { signupId, slotId } = await makeOpenSignupWithSlot(fx, 'Slug test signup');
+    const [signupRow] = await fx.db
+      .select({ slug: signups.slug })
+      .from(signups)
+      .where(eq(signups.id, signupId))
+      .limit(1);
+    if (!signupRow) throw new Error('signup not found');
+
+    const result = await commitToSlot(fx.db, slotId, {
+      name: 'Slug Tester',
+      email: 'slugtester@example.test',
+      quantity: 1,
+    });
+    if (!result.ok) throw new Error(`commitToSlot failed: ${result.error.message}`);
+    expect(result.value.signupSlug).toBe(signupRow.slug);
+  });
+});
 
 describe('updateOwnCommitment swap (db)', () => {
   let fx: Fixture;
