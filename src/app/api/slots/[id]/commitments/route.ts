@@ -22,8 +22,8 @@ export async function POST(
     const { id: slotId } = await ctx.params;
     const db = getDb();
     const clientIp =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      req.headers.get('x-real-ip') ??
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip')?.trim() ||
       null;
     if (clientIp) {
       await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp.slice(0, 45));
