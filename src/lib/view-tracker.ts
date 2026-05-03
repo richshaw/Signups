@@ -1,4 +1,3 @@
-import { headers } from 'next/headers';
 import type { ActivityEvent } from '@/db/schema/activity';
 import { getDb } from '@/db/client';
 import { recordActivity, type ActivityActor } from '@/lib/activity';
@@ -29,6 +28,29 @@ export function isDoNotTrack(headerMap: {
   return headerMap.get('dnt') === '1' || headerMap.get('sec-gpc') === '1';
 }
 
+/**
+ * Plain-data view of the request signals these recorders care about.
+ * Callers MUST extract these from `headers()` BEFORE scheduling a recorder
+ * via `after(...)` — Next.js 15 forbids dynamic APIs (headers/cookies/etc.)
+ * inside `after()` callbacks, since `after()` runs outside the request
+ * context.
+ */
+export interface RequestSignals {
+  userAgent: string | null;
+  referer: string | null;
+  dnt: boolean;
+}
+
+export function readRequestSignals(headerMap: {
+  get: (name: string) => string | null;
+}): RequestSignals {
+  return {
+    userAgent: headerMap.get('user-agent'),
+    referer: headerMap.get('referer'),
+    dnt: isDoNotTrack(headerMap),
+  };
+}
+
 async function writeActivity(args: {
   signupId: string | null;
   workspaceId: string | null;
@@ -53,11 +75,11 @@ export async function recordPublicView(args: {
   workspaceId: string | null;
   signupStatus: string;
   isReturning: boolean;
+  signals: RequestSignals;
 }): Promise<void> {
   try {
-    const h = await headers();
-    if (isDoNotTrack(h)) return;
-    const uaClass = classifyUa(h.get('user-agent'));
+    if (args.signals.dnt) return;
+    const uaClass = classifyUa(args.signals.userAgent);
     if (uaClass === 'bot') return;
     await writeActivity({
       signupId: args.signupId,
@@ -66,7 +88,7 @@ export async function recordPublicView(args: {
       eventType: 'signup.viewed',
       payload: {
         uaClass,
-        refererHost: refererHost(h.get('referer')),
+        refererHost: refererHost(args.signals.referer),
         isReturning: args.isReturning,
         signupStatus: args.signupStatus,
       },
@@ -81,11 +103,11 @@ export async function recordEditLinkFollowed(args: {
   workspaceId: string | null;
   commitmentId: string;
   participantId: string | null;
+  signals: RequestSignals;
 }): Promise<void> {
   try {
-    const h = await headers();
-    if (isDoNotTrack(h)) return;
-    if (classifyUa(h.get('user-agent')) === 'bot') return;
+    if (args.signals.dnt) return;
+    if (classifyUa(args.signals.userAgent) === 'bot') return;
     await writeActivity({
       signupId: args.signupId,
       workspaceId: args.workspaceId,

@@ -1,8 +1,9 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOwnCommitment } from '@/services/commitments';
-import { recordEditLinkFollowed } from '@/lib/view-tracker';
+import { readRequestSignals, recordEditLinkFollowed } from '@/lib/view-tracker';
 import EditForm from './edit-form';
 
 export const metadata = { title: 'Your signup' };
@@ -20,12 +21,16 @@ export default async function CommitmentEditPage({ params, searchParams }: PageP
   if (!result.ok) notFound();
   const c = result.value;
 
+  // Read headers in the request context — `after(...)` runs outside it and
+  // Next.js 15 forbids dynamic APIs (headers/cookies) inside the callback.
+  const signals = readRequestSignals(await headers());
   after(() =>
     recordEditLinkFollowed({
       signupId: c.signupId,
       workspaceId: c.workspaceId,
       commitmentId: c.id,
       participantId: c.participantId,
+      signals,
     }),
   );
 

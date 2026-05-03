@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
 import { getDb } from '@/db/client';
@@ -8,7 +8,7 @@ import {
   COMMIT_COOKIE_NAME,
   parseReturningCommits,
 } from '@/lib/returning-participant';
-import { recordPublicView } from '@/lib/view-tracker';
+import { readRequestSignals, recordPublicView } from '@/lib/view-tracker';
 import type { SignupStatus } from '@/schemas/signups';
 import type { SlotStatus } from '@/schemas/slots';
 import { getOwnCommitmentsForSignup } from '@/services/commitments';
@@ -90,12 +90,17 @@ export default async function PublicSignupPage({ params }: PageParams) {
     participantName: c.participantName,
   }));
 
+  // Read headers in the request context — `after(...)` runs outside it and
+  // Next.js 15 forbids dynamic APIs (headers/cookies) inside the callback.
+  const signals = readRequestSignals(await headers());
+  const isReturning = ownCommitments.length > 0;
   after(() =>
     recordPublicView({
       signupId: sig.id,
       workspaceId: sig.workspaceId,
       signupStatus: sig.status,
-      isReturning: ownCommitments.length > 0,
+      isReturning,
+      signals,
     }),
   );
 

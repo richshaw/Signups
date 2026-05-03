@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { activity } from '@/db/schema/activity';
@@ -7,23 +7,24 @@ import { organizers } from '@/db/schema/organizers';
 import { signups } from '@/db/schema/signups';
 import { workspaces } from '@/db/schema/workspaces';
 import { makeId } from '@/lib/ids';
-
-const headerStore: { current: Map<string, string> } = { current: new Map() };
-
-vi.mock('next/headers', () => ({
-  headers: async () => ({
-    get: (name: string) => headerStore.current.get(name.toLowerCase()) ?? null,
-  }),
-}));
-
-function setHeaders(map: Record<string, string>): void {
-  headerStore.current = new Map(
-    Object.entries(map).map(([k, v]) => [k.toLowerCase(), v]),
-  );
-}
+import {
+  recordEditLinkFollowed,
+  recordOrganizerView,
+  recordPublicView,
+  type RequestSignals,
+} from './view-tracker';
 
 const realBrowserUa =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+function browserSignals(overrides: Partial<RequestSignals> = {}): RequestSignals {
+  return {
+    userAgent: realBrowserUa,
+    referer: null,
+    dnt: false,
+    ...overrides,
+  };
+}
 
 describe('view-tracker (db)', () => {
   let db: Db;
@@ -75,18 +76,16 @@ describe('view-tracker (db)', () => {
 
   beforeEach(async () => {
     await db.delete(activity).where(eq(activity.signupId, signupId));
-    setHeaders({});
   });
 
   describe('recordPublicView', () => {
     it('writes a signup.viewed row for a real browser UA', async () => {
-      setHeaders({ 'user-agent': realBrowserUa, referer: 'https://news.ycombinator.com/' });
-      const { recordPublicView } = await import('./view-tracker');
       await recordPublicView({
         signupId,
         workspaceId,
         signupStatus: 'open',
         isReturning: false,
+        signals: browserSignals({ referer: 'https://news.ycombinator.com/' }),
       });
       const rows = await db
         .select()
@@ -107,13 +106,12 @@ describe('view-tracker (db)', () => {
     });
 
     it('records isReturning=true when passed', async () => {
-      setHeaders({ 'user-agent': realBrowserUa });
-      const { recordPublicView } = await import('./view-tracker');
       await recordPublicView({
         signupId,
         workspaceId,
         signupStatus: 'open',
         isReturning: true,
+        signals: browserSignals(),
       });
       const rows = await db
         .select()
@@ -125,30 +123,13 @@ describe('view-tracker (db)', () => {
       expect((rows[0]!.payload as Record<string, unknown>).isReturning).toBe(true);
     });
 
-    it('does not write when DNT=1', async () => {
-      setHeaders({ 'user-agent': realBrowserUa, dnt: '1' });
-      const { recordPublicView } = await import('./view-tracker');
+    it('does not write when DNT is set', async () => {
       await recordPublicView({
         signupId,
         workspaceId,
         signupStatus: 'open',
         isReturning: false,
-      });
-      const rows = await db
-        .select()
-        .from(activity)
-        .where(eq(activity.signupId, signupId));
-      expect(rows).toHaveLength(0);
-    });
-
-    it('does not write when Sec-GPC=1', async () => {
-      setHeaders({ 'user-agent': realBrowserUa, 'sec-gpc': '1' });
-      const { recordPublicView } = await import('./view-tracker');
-      await recordPublicView({
-        signupId,
-        workspaceId,
-        signupStatus: 'open',
-        isReturning: false,
+        signals: browserSignals({ dnt: true }),
       });
       const rows = await db
         .select()
@@ -158,16 +139,15 @@ describe('view-tracker (db)', () => {
     });
 
     it('does not write for a Googlebot UA', async () => {
-      setHeaders({
-        'user-agent':
-          'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-      });
-      const { recordPublicView } = await import('./view-tracker');
       await recordPublicView({
         signupId,
         workspaceId,
         signupStatus: 'open',
         isReturning: false,
+        signals: browserSignals({
+          userAgent:
+            'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        }),
       });
       const rows = await db
         .select()
@@ -177,13 +157,12 @@ describe('view-tracker (db)', () => {
     });
 
     it('writes when UA is missing (uaClass=unknown)', async () => {
-      setHeaders({});
-      const { recordPublicView } = await import('./view-tracker');
       await recordPublicView({
         signupId,
         workspaceId,
         signupStatus: 'closed',
         isReturning: false,
+        signals: { userAgent: null, referer: null, dnt: false },
       });
       const rows = await db
         .select()
@@ -201,8 +180,6 @@ describe('view-tracker (db)', () => {
 
   describe('recordEditLinkFollowed', () => {
     it('writes a row with participant actor', async () => {
-      setHeaders({ 'user-agent': realBrowserUa });
-      const { recordEditLinkFollowed } = await import('./view-tracker');
       const participantId = makeId('par');
       const commitmentId = makeId('com');
       await recordEditLinkFollowed({
@@ -210,6 +187,7 @@ describe('view-tracker (db)', () => {
         workspaceId,
         commitmentId,
         participantId,
+        signals: browserSignals(),
       });
       const rows = await db
         .select()
@@ -227,14 +205,13 @@ describe('view-tracker (db)', () => {
       expect((row.payload as Record<string, unknown>).commitmentId).toBe(commitmentId);
     });
 
-    it('skips on DNT=1', async () => {
-      setHeaders({ 'user-agent': realBrowserUa, dnt: '1' });
-      const { recordEditLinkFollowed } = await import('./view-tracker');
+    it('skips when DNT is set', async () => {
       await recordEditLinkFollowed({
         signupId,
         workspaceId,
         commitmentId: makeId('com'),
         participantId: makeId('par'),
+        signals: browserSignals({ dnt: true }),
       });
       const rows = await db
         .select()
@@ -246,7 +223,6 @@ describe('view-tracker (db)', () => {
 
   describe('recordOrganizerView', () => {
     it('writes a signup.editor_opened row with section payload', async () => {
-      const { recordOrganizerView } = await import('./view-tracker');
       await recordOrganizerView({
         actor: { actorId: organizerId, actorType: 'organizer' },
         signupId,
@@ -271,7 +247,6 @@ describe('view-tracker (db)', () => {
     });
 
     it('writes signup.draft_started without a signupId', async () => {
-      const { recordOrganizerView } = await import('./view-tracker');
       await recordOrganizerView({
         actor: { actorId: organizerId, actorType: 'organizer' },
         signupId: null,
