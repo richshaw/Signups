@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
-import type { Db, Queryable } from '@/db/client';
+import type { Db, Queryable, Tx } from '@/db/client';
 import { commitments } from '@/db/schema/commitments';
 import { participants } from '@/db/schema/participants';
 import { signups } from '@/db/schema/signups';
@@ -7,6 +7,7 @@ import { slots } from '@/db/schema/slots';
 import { recordActivity } from '@/lib/activity';
 import { serviceError, type ServiceError } from '@/lib/errors';
 import { makeId } from '@/lib/ids';
+import { log } from '@/lib/log';
 import { parseInputSafe } from '@/lib/parse';
 import { err, ok, type Result } from '@/lib/result';
 import { editTokenFor, hashToken, verifyHash } from '@/lib/token';
@@ -18,6 +19,37 @@ import {
 } from '@/schemas/commitments';
 
 type CommitmentRow = typeof commitments.$inferSelect;
+
+// Telemetry write inside an outer tx where a raw INSERT would otherwise abort
+// the surrounding transaction on failure. Uses a SAVEPOINT (Drizzle's nested
+// `tx.transaction`) so a failed activity insert rolls back only the savepoint,
+// leaving the outer tx free to return its intended ServiceError. Errors are
+// logged and swallowed — telemetry must never turn a `closed`/`capacity_full`
+// rejection into a 500.
+async function safeRecordAttemptFailed(
+  tx: Tx,
+  args: {
+    signupId: string | null;
+    workspaceId: string | null;
+    actorId: string | null;
+    actorType: 'system' | 'participant';
+    payload: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    await tx.transaction(async (sp) => {
+      await recordActivity(sp, {
+        signupId: args.signupId,
+        workspaceId: args.workspaceId,
+        actor: { actorId: args.actorId, actorType: args.actorType },
+        eventType: 'commitment.attempt_failed',
+        payload: args.payload,
+      });
+    });
+  } catch (err) {
+    log.warn({ err, payload: args.payload }, 'recordActivity attempt_failed failed');
+  }
+}
 
 export interface CommitResult {
   commitment: CommitmentRow;
@@ -43,6 +75,13 @@ export async function commitToSlot(
     const slot = slotRows[0];
     if (!slot) return err(serviceError('not_found', 'slot not found'));
     if (slot.status !== 'open') {
+      await safeRecordAttemptFailed(tx, {
+        signupId: slot.signupId,
+        workspaceId: slot.workspaceId,
+        actorId: null,
+        actorType: 'system',
+        payload: { slotId, reason: 'closed', detail: 'slot_closed' },
+      });
       return err(serviceError('closed', 'that slot is closed'));
     }
 
@@ -54,6 +93,13 @@ export async function commitToSlot(
     const signupRow = signupRows[0];
     if (!signupRow) return err(serviceError('not_found', 'signup missing'));
     if (signupRow.status !== 'open') {
+      await safeRecordAttemptFailed(tx, {
+        signupId: signupRow.id,
+        workspaceId: signupRow.workspaceId,
+        actorId: null,
+        actorType: 'system',
+        payload: { slotId, reason: 'closed', detail: `signup_${signupRow.status}` },
+      });
       return err(
         serviceError('closed', 'signup is not accepting commitments', {
           field: 'status',
@@ -63,6 +109,13 @@ export async function commitToSlot(
       );
     }
     if (signupRow.closesAt && signupRow.closesAt.getTime() < Date.now()) {
+      await safeRecordAttemptFailed(tx, {
+        signupId: signupRow.id,
+        workspaceId: signupRow.workspaceId,
+        actorId: null,
+        actorType: 'system',
+        payload: { slotId, reason: 'over_window', detail: 'closes_at_elapsed' },
+      });
       return err(serviceError('closed', 'signup has closed'));
     }
 
@@ -71,6 +124,13 @@ export async function commitToSlot(
     if (slot.slotAt && settings.lockoutHoursBeforeSlot && settings.lockoutHoursBeforeSlot > 0) {
       const lockoutMs = settings.lockoutHoursBeforeSlot * 3600 * 1000;
       if (Date.now() > slot.slotAt.getTime() - lockoutMs) {
+        await safeRecordAttemptFailed(tx, {
+          signupId: signupRow.id,
+          workspaceId: signupRow.workspaceId,
+          actorId: null,
+          actorType: 'system',
+          payload: { slotId, reason: 'over_window', detail: 'slot_lockout' },
+        });
         return err(serviceError('closed', 'too close to the slot time to sign up'));
       }
     }
@@ -151,6 +211,18 @@ export async function commitToSlot(
         .where(and(eq(slots.signupId, slot.signupId), eq(slots.status, 'open'), ne(slots.id, slotId)))
         .orderBy(asc(slots.slotAt), asc(slots.sortOrder))
         .limit(3);
+      await safeRecordAttemptFailed(tx, {
+        signupId: slot.signupId,
+        workspaceId: slot.workspaceId,
+        actorId: null,
+        actorType: 'system',
+        payload: {
+          slotId,
+          reason: 'capacity_full',
+          requested: data.quantity,
+          remaining,
+        },
+      });
       return err(
         serviceError(
           'capacity_full',
@@ -366,6 +438,19 @@ export async function updateOwnCommitment(
         const otherQty = sumRows[0]?.sum ?? 0;
         if (otherQty + data.quantity > cap) {
           const remaining = Math.max(0, cap - otherQty);
+          await safeRecordAttemptFailed(tx, {
+            signupId: current.signupId,
+            workspaceId: current.workspaceId,
+            actorId: current.participantId,
+            actorType: 'participant',
+            payload: {
+              slotId: current.slotId,
+              reason: 'capacity_full',
+              source: 'update',
+              requested: data.quantity,
+              remaining,
+            },
+          });
           return err(
             serviceError(
               'capacity_full',
