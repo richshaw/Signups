@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
 import { recordOrganizerView } from '@/lib/view-tracker';
 import { updateBasicsAction } from '../actions';
 
@@ -60,12 +61,12 @@ export default async function SettingsTab({ params, searchParams }: PageParams) 
           />
         </label>
         <div className="flex items-center justify-end">
-          <button
-            type="submit"
-            className="bg-brand rounded-lg px-5 py-2 font-medium text-white transition hover:brightness-110"
+          <AsyncSubmitButton
+            loadingLabel="Saving…"
+            className="bg-brand rounded-lg px-5 py-2 font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90"
           >
             Save changes
-          </button>
+          </AsyncSubmitButton>
         </div>
       </form>
     </section>
