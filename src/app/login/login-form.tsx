@@ -138,7 +138,8 @@ type HelperProps = {
 function HelperText({ state, email, onReset }: HelperProps) {
   return (
     <p
-      aria-live="polite"
+      role={state === 'error' ? 'alert' : undefined}
+      aria-live={state === 'error' ? undefined : 'polite'}
       className={`text-ink-soft min-h-[1.2em] text-xs ${state === 'error' ? 'text-danger' : ''}`}
     >
       {state === 'success' && (
