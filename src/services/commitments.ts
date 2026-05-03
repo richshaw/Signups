@@ -22,6 +22,7 @@ type CommitmentRow = typeof commitments.$inferSelect;
 export interface CommitResult {
   commitment: CommitmentRow;
   editToken: string;
+  signupSlug: string;
 }
 
 export async function commitToSlot(
@@ -212,7 +213,7 @@ export async function commitToSlot(
       payload: { commitmentId, slotId },
     });
 
-    return ok({ commitment: row, editToken });
+    return ok({ commitment: row, editToken, signupSlug: signupRow.slug });
   });
 }
 
