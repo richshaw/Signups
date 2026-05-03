@@ -1,12 +1,14 @@
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth/config';
 import { getOrganizerSession } from '@/auth/session';
+import { log } from '@/lib/log';
+import { EmailSchema } from '@/schemas/common';
+import { LoginForm, type LoginActionResult } from './login-form';
 
 export const metadata = { title: 'Sign in' };
 
 function safeCallbackUrl(raw: string | undefined): string {
   if (!raw) return '/app';
-  // Same-origin paths only: must start with '/', must not be protocol-relative '//' or backslash-relative.
   if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/app';
   return raw;
 }
@@ -18,16 +20,22 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const session = await getOrganizerSession();
-  if (session) redirect(safeCallbackUrl(params.callbackUrl));
+  const callbackUrl = safeCallbackUrl(params.callbackUrl);
+  if (session) redirect(callbackUrl);
 
-  async function handle(formData: FormData) {
+  async function handle(formData: FormData): Promise<LoginActionResult> {
     'use server';
-    const email = String(formData.get('email') ?? '').trim();
-    if (!email) return;
-    await signIn('nodemailer', {
-      email,
-      redirectTo: '/app',
-    });
+    const raw = String(formData.get('email') ?? '').trim();
+    const parsed = EmailSchema.safeParse(raw);
+    if (!parsed.success) return { ok: false, reason: 'invalid_email' };
+    const email = parsed.data;
+    try {
+      await signIn('nodemailer', { email, redirect: false, redirectTo: callbackUrl });
+      return { ok: true, email };
+    } catch (error) {
+      log.error({ err: error }, 'login: signIn failed');
+      return { ok: false, reason: 'send_failed' };
+    }
   }
 
   return (
@@ -35,34 +43,15 @@ export default async function LoginPage({
       <div className="space-y-3">
         <h1 className="text-3xl font-semibold tracking-tight">Sign in to OpenSignup</h1>
         <p className="text-ink-muted">
-          Enter your email and we&apos;ll send you a magic link. No passwords.
+          Enter your email and we&apos;ll send you a magic link to sign in. No passwords.
         </p>
       </div>
-      <form action={handle} className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Email</span>
-          <input
-            type="email"
-            name="email"
-            required
-            autoComplete="email"
-            inputMode="email"
-            className="focus:border-brand focus:ring-brand w-full rounded-lg border border-surface-sunk bg-white px-4 py-3 text-base shadow-sm transition focus:outline-none focus:ring-1"
-            placeholder="you@example.com"
-          />
-        </label>
-        <button
-          type="submit"
-          className="bg-brand w-full rounded-lg px-5 py-3 font-medium text-white transition hover:brightness-110"
-        >
-          Send magic link
-        </button>
-        {params.error ? (
-          <p className="text-danger text-sm" role="alert">
-            Something went wrong. Try again.
-          </p>
-        ) : null}
-      </form>
+      {params.error ? (
+        <p className="text-danger text-sm" role="alert">
+          Something went wrong. Try again.
+        </p>
+      ) : null}
+      <LoginForm action={handle} />
     </main>
   );
 }

@@ -1,13 +1,28 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { createSignup } from '@/services/signups';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
+import { recordOrganizerView } from '@/lib/view-tracker';
 
 export const metadata = { title: 'New signup' };
 
 export default async function NewSignupPage() {
   const session = await getOrganizerSession();
   if (!session) redirect('/login?callbackUrl=/app/signups/new');
+
+  if (session.defaultWorkspaceId) {
+    const workspaceId = session.defaultWorkspaceId;
+    after(() =>
+      recordOrganizerView({
+        actor: { actorId: session.organizerId, actorType: 'organizer' },
+        signupId: null,
+        workspaceId,
+        eventType: 'signup.draft_started',
+      }),
+    );
+  }
 
   async function createAction(formData: FormData) {
     'use server';
@@ -63,12 +78,12 @@ export default async function NewSignupPage() {
           >
             Cancel
           </a>
-          <button
-            type="submit"
-            className="bg-brand rounded-lg px-5 py-2 font-medium text-white transition hover:brightness-110"
+          <AsyncSubmitButton
+            loadingLabel="Creating…"
+            className="bg-brand rounded-lg px-5 py-2 font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:brightness-90"
           >
             Create signup
-          </button>
+          </AsyncSubmitButton>
         </div>
       </form>
     </div>

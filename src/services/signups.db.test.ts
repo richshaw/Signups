@@ -412,9 +412,46 @@ describe('signups service (db)', () => {
       if (r.ok) return;
       expect(r.error.code).toBe('capacity_full');
 
+      const acts = await fx.db
+        .select()
+        .from(activity)
+        .where(eq(activity.signupId, created.value.id));
+      const failures = acts.filter((a) => a.eventType === 'commitment.attempt_failed');
+      expect(failures).toHaveLength(1);
+      expect((failures[0]!.payload as Record<string, unknown>).reason).toBe('capacity_full');
+      expect((failures[0]!.payload as Record<string, unknown>).slotId).toBe(slotR.value.id);
+
       const pubR = await getPublicSignup(fx.db, created.value.slug);
       if (!pubR.ok) throw new Error('public read failed');
       expect(pubR.value.committedBySlot).toEqual({});
+    });
+
+    it('logs commitment.attempt_failed with reason=closed when committing to a closed signup', async () => {
+      const created = await createSignup(fx.db, fx.actor, fx.workspaceId, validCreateInput('Closed for commit'));
+      if (!created.ok) throw new Error('setup failed');
+      const slotR = await addSlot(fx.db, fx.actor, created.value.id, { values: {}, capacity: 5 });
+      if (!slotR.ok) throw new Error('slot setup failed');
+      const pub = await publishSignup(fx.db, fx.actor, created.value.id);
+      if (!pub.ok) throw new Error('setup failed');
+      const closed = await closeSignup(fx.db, fx.actor, created.value.id);
+      if (!closed.ok) throw new Error('setup failed');
+
+      const r = await commitToSlot(fx.db, slotR.value.id, {
+        name: 'Late',
+        email: 'late@example.com',
+        quantity: 1,
+      });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('closed');
+
+      const acts = await fx.db
+        .select()
+        .from(activity)
+        .where(eq(activity.signupId, created.value.id));
+      const failures = acts.filter((a) => a.eventType === 'commitment.attempt_failed');
+      expect(failures).toHaveLength(1);
+      expect((failures[0]!.payload as Record<string, unknown>).reason).toBe('closed');
     });
 
     it('reports committedBySlot as sum of quantities', async () => {

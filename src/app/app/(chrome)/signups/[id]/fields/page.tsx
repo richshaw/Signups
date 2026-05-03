@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { fieldEnumChoices, fieldTypeLabel } from '@/lib/field-labels';
+import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
+import { recordOrganizerView } from '@/lib/view-tracker';
 import AddFieldForm from '../add-field-form';
 import { addFieldAction, deleteFieldAction, updateSettingsAction } from '../actions';
 
@@ -14,6 +17,15 @@ export default async function FieldsTab({ params }: PageParams) {
   const result = await loadSignupForOrganizer(toActor(session), id);
   if (!result.ok) return null;
   const sig = result.value;
+  after(() =>
+    recordOrganizerView({
+      actor: { actorId: session.organizerId, actorType: 'organizer' },
+      signupId: sig.id,
+      workspaceId: sig.workspaceId,
+      eventType: 'signup.editor_opened',
+      payload: { section: 'fields' },
+    }),
+  );
   const fields = sig.fields;
   const dateFieldCount = fields.filter((f) => f.fieldType === 'date').length;
   const settings = (sig.settings ?? {}) as {
@@ -57,12 +69,12 @@ export default async function FieldsTab({ params }: PageParams) {
                 </div>
                 <form action={deleteFieldAction.bind(null, id)}>
                   <input type="hidden" name="fieldId" value={f.id} />
-                  <button
-                    type="submit"
-                    className="text-danger text-sm transition hover:underline"
+                  <AsyncSubmitButton
+                    loadingLabel="Removing…"
+                    className="text-danger text-sm transition hover:underline disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Remove
-                  </button>
+                  </AsyncSubmitButton>
                 </form>
               </li>
             );
@@ -113,12 +125,12 @@ export default async function FieldsTab({ params }: PageParams) {
           ) : (
             <input type="hidden" name="reminderFromFieldRef" value={reminderRef} />
           )}
-          <button
-            type="submit"
-            className="hover:bg-surface-raised rounded-lg border border-surface-sunk px-4 py-2 text-sm font-medium transition"
+          <AsyncSubmitButton
+            loadingLabel="Saving…"
+            className="hover:bg-surface-raised rounded-lg border border-surface-sunk px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-70"
           >
             Save settings
-          </button>
+          </AsyncSubmitButton>
         </form>
       ) : null}
     </section>

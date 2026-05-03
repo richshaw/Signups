@@ -50,6 +50,16 @@ describe('policy', () => {
     expect(() => requireWorkspaceAccess(anon, 'ws_any')).toThrow(/organizer session/);
   });
 
+  it('anonymous cannot write to workspace', () => {
+    const anon: Actor = { kind: 'anonymous' };
+    expect(() => requireWorkspaceWrite(anon, 'ws_any')).toThrow(/organizer session/);
+  });
+
+  it('organizer from different workspace cannot write', () => {
+    const a = organizer({ ws_one: 'owner' });
+    expect(() => requireWorkspaceWrite(a, 'ws_other')).toThrow(/not a member/);
+  });
+
   it('workspaceRole returns null for anon and unknown ws', () => {
     const a = organizer({ ws_one: 'owner' });
     expect(workspaceRole(a, 'ws_unknown')).toBeNull();

@@ -50,6 +50,22 @@ export default {
       boxShadow: {
         card: '0 1px 2px rgba(11,18,32,0.04), 0 4px 16px rgba(11,18,32,0.06)',
       },
+      transitionDuration: {
+        180: '180ms',
+      },
+      transitionTimingFunction: {
+        emphasized: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
+      },
+      keyframes: {
+        'check-draw': {
+          from: { strokeDashoffset: '24' },
+          to: { strokeDashoffset: '0' },
+        },
+      },
+      animation: {
+        'spin-720': 'spin 720ms linear infinite',
+        'check-draw': 'check-draw 360ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards',
+      },
     },
   },
   plugins: [],
