@@ -3,7 +3,10 @@
 import { useRef, useState, useTransition } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 
-export type LoginActionResult = { ok: true; email: string } | { ok: false };
+export type LoginErrorReason = 'invalid_email' | 'send_failed';
+export type LoginActionResult =
+  | { ok: true; email: string }
+  | { ok: false; reason: LoginErrorReason };
 
 type Props = {
   action: (formData: FormData) => Promise<LoginActionResult>;
@@ -17,6 +20,7 @@ export function LoginForm({ action }: Props) {
   const [view, setView] = useState<View>('idle');
   const [pending, startTransition] = useTransition();
   const [confirmedEmail, setConfirmedEmail] = useState('');
+  const [errorReason, setErrorReason] = useState<LoginErrorReason>('send_failed');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const state: 'idle' | 'loading' | 'success' | 'error' = pending ? 'loading' : view;
@@ -30,7 +34,7 @@ export function LoginForm({ action }: Props) {
       try {
         result = await action(formData);
       } catch {
-        result = { ok: false };
+        result = { ok: false, reason: 'send_failed' };
       }
       const elapsed = Date.now() - start;
       if (elapsed < MIN_LOADING_MS) {
@@ -40,6 +44,7 @@ export function LoginForm({ action }: Props) {
         setConfirmedEmail(result.email);
         setView('success');
       } else {
+        setErrorReason(result.reason);
         setView('error');
       }
     });
@@ -80,7 +85,7 @@ export function LoginForm({ action }: Props) {
       >
         <ButtonLabel state={state} />
       </button>
-      <HelperText state={state} email={confirmedEmail} onReset={reset} />
+      <HelperText state={state} email={confirmedEmail} errorReason={errorReason} onReset={reset} />
     </form>
   );
 }
@@ -132,10 +137,11 @@ function CheckIcon() {
 type HelperProps = {
   state: 'idle' | 'loading' | 'success' | 'error';
   email: string;
+  errorReason: LoginErrorReason;
   onReset: () => void;
 };
 
-function HelperText({ state, email, onReset }: HelperProps) {
+function HelperText({ state, email, errorReason, onReset }: HelperProps) {
   return (
     <p
       role={state === 'error' ? 'alert' : undefined}
@@ -156,7 +162,9 @@ function HelperText({ state, email, onReset }: HelperProps) {
       )}
       {state === 'error' && (
         <>
-          Couldn&rsquo;t send.{' '}
+          {errorReason === 'invalid_email'
+            ? 'That doesn’t look like a valid email address.'
+            : 'Couldn’t send. Please try again.'}{' '}
           <button
             type="button"
             onClick={onReset}

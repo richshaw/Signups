@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth/config';
 import { getOrganizerSession } from '@/auth/session';
+import { log } from '@/lib/log';
+import { EmailSchema } from '@/schemas/common';
 import { LoginForm, type LoginActionResult } from './login-form';
 
 export const metadata = { title: 'Sign in' };
@@ -22,13 +24,16 @@ export default async function LoginPage({
 
   async function handle(formData: FormData): Promise<LoginActionResult> {
     'use server';
-    const email = String(formData.get('email') ?? '').trim();
-    if (!email) return { ok: false };
+    const raw = String(formData.get('email') ?? '').trim();
+    const parsed = EmailSchema.safeParse(raw);
+    if (!parsed.success) return { ok: false, reason: 'invalid_email' };
+    const email = parsed.data;
     try {
       await signIn('nodemailer', { email, redirect: false });
       return { ok: true, email };
-    } catch {
-      return { ok: false };
+    } catch (error) {
+      log.error({ err: error }, 'login: signIn failed');
+      return { ok: false, reason: 'send_failed' };
     }
   }
 
