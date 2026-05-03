@@ -20,23 +20,24 @@ export async function POST(
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
 
-    const editUrl = commitmentEditUrl(result.value.signupSlug, result.value.commitment.id, result.value.editToken);
+    const { signupSlug, ...responseValue } = result.value;
+    const editUrl = commitmentEditUrl(signupSlug, responseValue.commitment.id, responseValue.editToken);
     const response = respond(
-      { ok: true, value: { ...result.value, editUrl } },
+      { ok: true, value: { ...responseValue, editUrl } },
       {
         edit: link(editUrl),
-        self: link(`/api/commitments/${result.value.commitment.id}?token=${result.value.editToken}`),
+        self: link(`/api/commitments/${responseValue.commitment.id}?token=${responseValue.editToken}`),
         cancel: link(
-          `/api/commitments/${result.value.commitment.id}?token=${result.value.editToken}`,
+          `/api/commitments/${responseValue.commitment.id}?token=${responseValue.editToken}`,
           'DELETE',
         ),
       },
     );
     const nextCookie = appendReturningCommit(
       req.cookies.get(COMMIT_COOKIE_NAME)?.value ?? null,
-      result.value.commitment.id,
-      result.value.editToken,
-      result.value.commitment.signupId,
+      responseValue.commitment.id,
+      responseValue.editToken,
+      responseValue.commitment.signupId,
     );
     setReturningCommitCookie(response, nextCookie);
     return response;
