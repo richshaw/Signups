@@ -34,6 +34,8 @@ Run a single vitest file: `pnpm test src/lib/policy.test.ts`. Run a single test 
 
 Local Postgres comes from `docker compose up -d` (port **5433**, db/user/password all `signup`). Default `DATABASE_URL` matches.
 
+First-time setup: `pnpm install && cp .env.example .env.local && docker compose up -d && pnpm db:migrate`.
+
 ## Architecture
 
 Next.js 15 App Router monolith, TypeScript strict mode (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`-adjacent flags on). Postgres via Drizzle. Auth.js v5 (magic link). pg-boss for jobs. React Email + pluggable transport. Path alias `@/*` → `src/*`.
@@ -43,8 +45,8 @@ Next.js 15 App Router monolith, TypeScript strict mode (`noUncheckedIndexedAcces
 Every mutation must go through this chain — route handlers stay thin:
 
 1. `src/app/api/.../route.ts` — Next.js handler. Parses request, builds `Actor`, calls service.
-2. `src/services/{signups,slots,commitments}.ts` — pure(-ish) functions `(db, actor, input) => Promise<Result<T, ServiceError>>`. Business rules live here.
-3. `src/lib/policy.ts` — `Actor` (organizer | participant | anonymous), `requireWorkspaceAccess`, `requireWorkspaceWrite`. **No service queries the DB without first calling a policy guard.** Every tenant-table query includes `workspace_id = ?`.
+2. `src/services/{signups,slots,commitments,slot-fields}.ts` — pure(-ish) functions `(db, actor, input) => Promise<Result<T, ServiceError>>`. Business rules live here. Server components read via `src/services/signups.cached.ts`, which wraps service reads in React `cache()` for per-request dedupe — prefer the cached entry points in RSC, raw services elsewhere.
+3. `src/lib/policy.ts` — `Actor` (organizer | participant | anonymous), `requireWorkspaceAccess`, `requireWorkspaceWrite`. **No service queries the DB without first calling a policy guard.** Every tenant-table query includes `workspace_id = ?`. Workspace roles are `owner | admin | editor | viewer`; only `viewer` is read-only — use `requireWorkspaceWrite` for any mutation.
 4. `src/db/client.ts` — `getDb()` returns a Drizzle handle backed by a singleton `postgres` client (cached on `globalThis.__signup_pg__`). `Db | Tx` are interchangeable via `Queryable`.
 5. `src/db/schema/*.ts` — one file per entity, re-exported from `schema/index.ts`. `casing: 'snake_case'` is set in both Drizzle config and client, so TS uses camelCase, SQL uses snake_case.
 
@@ -86,6 +88,10 @@ pg-boss runs against the same Postgres (schema `pgboss`). The Next.js server **d
 ### Env
 
 `src/lib/env.ts` parses `process.env` through Zod with `.superRefine` for conditional requirements (e.g. `RESEND_API_KEY` required when `EMAIL_TRANSPORT=resend`). Tests import the pure `parseEnv` function. `getEnv()` lazily parses once at runtime.
+
+### Logging
+
+`src/lib/log.ts` exports a pino logger (`pino-pretty` in dev, JSON in prod). `redact` strips `authorization`, `cookie`, `*.password`, `*.token`, `*.apiKey`, `RESEND_API_KEY`, `SMTP_PASSWORD`. Outside dev, also redact magic-link URLs and any token-bearing query strings before logging. When adding a new secret-shaped field, extend `redact.paths`.
 
 ## Conventions that hurt to violate
 
