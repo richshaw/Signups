@@ -38,7 +38,8 @@ export async function consumeRateLimit(
     })
     .returning({ count: rateLimits.count });
 
-  if (bumped && bumped.count > policy.max) {
+  if (!bumped) throw new ServiceException(serviceError('internal', 'rate limit check failed'));
+  if (bumped.count > policy.max) {
     const retryAfter = Math.ceil(
       (windowStart.getTime() + policy.windowSeconds * 1000 - now.getTime()) / 1000,
     );
