@@ -61,6 +61,12 @@ describe('SlotFieldConfigSchema', () => {
     expect(() => SlotFieldConfigSchema.parse({ fieldType: 'enum', choices: [] })).toThrow();
   });
 
+  it('trims whitespace from enum choices', () => {
+    expect(
+      SlotFieldConfigSchema.parse({ fieldType: 'enum', choices: ['  Math  ', ' Science'] }),
+    ).toEqual({ fieldType: 'enum', choices: ['Math', 'Science'] });
+  });
+
   it('rejects enum with a choice longer than 60 chars', () => {
     const long = 'x'.repeat(61);
     expect(() =>

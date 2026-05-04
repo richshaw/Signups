@@ -32,7 +32,7 @@ const NumberConfigSchema = z.object({
 
 const EnumConfigSchema = z.object({
   fieldType: z.literal('enum'),
-  choices: z.array(z.string().min(1).max(60)).min(1).max(20),
+  choices: z.array(z.string().trim().min(1).max(60)).min(1).max(20),
 });
 
 export const SlotFieldConfigSchema = z.discriminatedUnion('fieldType', [
