@@ -40,8 +40,8 @@ export async function findReplay(
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (row.requestHash !== hashBody(ctx.requestBody)) return 'conflict';
   if (row.expiresAt.getTime() < Date.now()) return null;
+  if (row.requestHash !== hashBody(ctx.requestBody)) return 'conflict';
   return { responseBody: row.responseBody, responseStatus: row.responseStatus };
 }
 
