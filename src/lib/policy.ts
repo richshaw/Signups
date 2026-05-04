@@ -72,21 +72,6 @@ export function requireWorkspaceWrite(actor: Actor, workspaceId: string | null):
   }
 }
 
-export function assertOwnCommitment(
-  actor: Actor,
-  target: { signupId: string; commitmentId: string },
-): void {
-  if (
-    actor.kind !== 'participant' ||
-    actor.signupId !== target.signupId ||
-    actor.commitmentId !== target.commitmentId
-  ) {
-    throw new ServiceException(
-      serviceError('forbidden', 'this action requires the commitment edit token'),
-    );
-  }
-}
-
 export function anon(): Extract<Actor, { kind: 'anonymous' }> {
   return { kind: 'anonymous' };
 }
