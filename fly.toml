@@ -5,12 +5,12 @@
 #
 # Required secrets (set via `fly secrets set KEY=value`):
 #   AUTH_SECRET   — 32+ char random string (e.g. `openssl rand -base64 32`)
-#   AUTH_URL      — public app URL, e.g. https://opensignup.org. Used as the
-#                   canonical origin for magic-link emails; without it (or set
-#                   to the *.fly.dev hostname) sign-in links will point at the
-#                   internal Fly host.
+#   AUTH_URL      — public app URL, e.g. https://signup.example.com. Used as
+#                   the canonical origin for magic-link emails; without it (or
+#                   set to the *.fly.dev hostname) sign-in links will point at
+#                   the internal Fly host.
 #   DATABASE_URL  — populated automatically by `fly postgres attach`
-#   EMAIL_FROM    — e.g. "OpenSignup <hello@opensignup.org>"
+#   EMAIL_FROM    — e.g. "OpenSignup <hello@signup.example.com>"
 #   EMAIL_TRANSPORT + RESEND_API_KEY (or SMTP_* vars) — see .env.example
 
 app = "signups"
