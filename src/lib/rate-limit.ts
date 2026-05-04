@@ -59,5 +59,4 @@ export const RateLimits = {
   magicLinkPerEmail: { bucket: 'auth.magic.email', max: 5, windowSeconds: 3600 },
   magicLinkPerIp: { bucket: 'auth.magic.ip', max: 20, windowSeconds: 3600 },
   commitmentPerIp: { bucket: 'commit.ip', max: 10, windowSeconds: 60 },
-  signupCreatePerOrganizer: { bucket: 'signup.create', max: 60, windowSeconds: 3600 },
 } as const;

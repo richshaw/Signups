@@ -87,8 +87,4 @@ export function assertOwnCommitment(
   }
 }
 
-export function anon(): Extract<Actor, { kind: 'anonymous' }> {
-  return { kind: 'anonymous' };
-}
-
 export type PolicyError = ServiceError;
