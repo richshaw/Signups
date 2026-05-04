@@ -1,16 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { isIP } from 'node:net';
-import { eq } from 'drizzle-orm';
 import { getDb } from '@/db/client';
-import { signups } from '@/db/schema/signups';
-import { slots } from '@/db/schema/slots';
 import { fail, handle, respond } from '@/lib/api-response';
 import {
   COMMIT_COOKIE_NAME,
   appendReturningCommit,
   setReturningCommitCookie,
 } from '@/lib/returning-participant';
-import { serviceError } from '@/lib/errors';
 import { commitmentEditUrl, link } from '@/lib/links';
 import { consumeRateLimit, RateLimits } from '@/lib/rate-limit';
 import { commitToSlot } from '@/services/commitments';
@@ -27,37 +23,29 @@ export async function POST(
       req.headers.get('x-real-ip')?.trim() ||
       null;
     const clientIp = rawIp && isIP(rawIp) ? rawIp : null;
-    if (clientIp) {
-      await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp);
-    }
+    await consumeRateLimit(db, RateLimits.commitmentPerIp, clientIp ?? 'unknown');
     const body = await req.json().catch(() => ({}));
     const result = await commitToSlot(db, slotId, body);
     if (!result.ok) return fail(result.error);
 
-    const slotRow = await db.select().from(slots).where(eq(slots.id, slotId)).limit(1);
-    const first = slotRow[0];
-    if (!first) return fail(serviceError('not_found', 'slot vanished'));
-    const signupRow = await db.select().from(signups).where(eq(signups.id, first.signupId)).limit(1);
-    const sig = signupRow[0];
-    if (!sig) return fail(serviceError('not_found', 'signup missing'));
-
-    const editUrl = commitmentEditUrl(sig.slug, result.value.commitment.id, result.value.editToken);
+    const { signupSlug, ...responseValue } = result.value;
+    const editUrl = commitmentEditUrl(signupSlug, responseValue.commitment.id, responseValue.editToken);
     const response = respond(
-      { ok: true, value: { ...result.value, editUrl } },
+      { ok: true, value: { ...responseValue, editUrl } },
       {
         edit: link(editUrl),
-        self: link(`/api/commitments/${result.value.commitment.id}?token=${result.value.editToken}`),
+        self: link(`/api/commitments/${responseValue.commitment.id}?token=${responseValue.editToken}`),
         cancel: link(
-          `/api/commitments/${result.value.commitment.id}?token=${result.value.editToken}`,
+          `/api/commitments/${responseValue.commitment.id}?token=${responseValue.editToken}`,
           'DELETE',
         ),
       },
     );
     const nextCookie = appendReturningCommit(
       req.cookies.get(COMMIT_COOKIE_NAME)?.value ?? null,
-      result.value.commitment.id,
-      result.value.editToken,
-      sig.id,
+      responseValue.commitment.id,
+      responseValue.editToken,
+      responseValue.commitment.signupId,
     );
     setReturningCommitCookie(response, nextCookie);
     return response;
