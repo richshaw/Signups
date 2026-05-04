@@ -10,7 +10,7 @@ import { log } from '@/lib/log';
 import { RateLimits, consumeRateLimit } from '@/lib/rate-limit';
 import { ServiceException } from '@/lib/errors';
 import { SignupAdapter } from './adapter';
-import { getRequestIp } from './request-context';
+import { getCurrentRequestIp } from './request-context';
 
 // Built lazily on first request: SignupAdapter() touches getDb() → getEnv(),
 // which would otherwise fire at module-load and break `next build`'s page-data
@@ -31,7 +31,7 @@ function buildConfig(): NextAuthConfig {
         from: 'noreply@opensignup.invalid',
         async sendVerificationRequest({ identifier, url, expires }) {
           const subject = identifier.trim().toLowerCase();
-          const ip = getRequestIp();
+          const ip = await getCurrentRequestIp();
           try {
             // IP bucket first: a misbehaving IP exhausts its own quota
             // before it can degrade any victim's per-email quota. Null IPs

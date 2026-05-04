@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { extractClientIp, getRequestIp, runWithRequestContext } from './request-context';
+import { describe, expect, it, vi } from 'vitest';
+import { extractClientIp, getCurrentRequestIp } from './request-context';
 
 function headers(init: Record<string, string>): Headers {
   return new Headers(init);
@@ -30,33 +30,24 @@ describe('extractClientIp', () => {
   });
 });
 
-describe('runWithRequestContext / getRequestIp', () => {
-  it('returns null when called outside any context', () => {
-    expect(getRequestIp()).toBeNull();
+vi.mock('next/headers', () => ({
+  headers: vi.fn(),
+}));
+
+describe('getCurrentRequestIp', () => {
+  it('returns the client IP from the live request headers', async () => {
+    const { headers: mocked } = await import('next/headers');
+    vi.mocked(mocked).mockResolvedValueOnce(
+      new Headers({ 'x-forwarded-for': '203.0.113.5' }) as never,
+    );
+    expect(await getCurrentRequestIp()).toBe('203.0.113.5');
   });
 
-  it('exposes the ip set in the surrounding context', () => {
-    const result = runWithRequestContext({ ip: '203.0.113.5' }, () => getRequestIp());
-    expect(result).toBe('203.0.113.5');
-  });
-
-  it('exposes ip across an awaited boundary', async () => {
-    const result = await runWithRequestContext({ ip: '198.51.100.7' }, async () => {
-      await Promise.resolve();
-      return getRequestIp();
+  it('returns null when next/headers throws (outside any request scope)', async () => {
+    const { headers: mocked } = await import('next/headers');
+    vi.mocked(mocked).mockImplementationOnce(() => {
+      throw new Error('called outside a request');
     });
-    expect(result).toBe('198.51.100.7');
-  });
-
-  it('isolates contexts across concurrent calls', async () => {
-    const [a, b] = await Promise.all([
-      runWithRequestContext({ ip: '10.0.0.1' }, async () => {
-        await new Promise((r) => setTimeout(r, 5));
-        return getRequestIp();
-      }),
-      runWithRequestContext({ ip: '10.0.0.2' }, async () => getRequestIp()),
-    ]);
-    expect(a).toBe('10.0.0.1');
-    expect(b).toBe('10.0.0.2');
+    expect(await getCurrentRequestIp()).toBeNull();
   });
 });
