@@ -17,7 +17,7 @@ export const EmailSchema = z
   .string()
   .email()
   .max(254)
-  .transform((v) => v.trim());
+  .transform((v) => v.trim().toLowerCase());
 
 export const NameSchema = z.string().min(1).max(100).transform((v) => v.trim());
 
