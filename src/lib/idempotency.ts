@@ -12,10 +12,15 @@ export interface IdempotencyContext {
   ttlSeconds?: number;
 }
 
+/**
+ * Returns the cached response to replay, `'conflict'` when the same key was
+ * used with a different request body (caller should respond 409), or `null`
+ * when no valid prior record exists.
+ */
 export async function findReplay(
   db: Db,
   ctx: IdempotencyContext,
-): Promise<{ responseBody: string; responseStatus: number } | null> {
+): Promise<{ responseBody: string; responseStatus: number } | 'conflict' | null> {
   const rows = await db
     .select()
     .from(idempotencyKeys)
@@ -35,8 +40,8 @@ export async function findReplay(
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (row.requestHash !== hashBody(ctx.requestBody)) return null; // treated as 409 by caller
   if (row.expiresAt.getTime() < Date.now()) return null;
+  if (row.requestHash !== hashBody(ctx.requestBody)) return 'conflict';
   return { responseBody: row.responseBody, responseStatus: row.responseStatus };
 }
 
