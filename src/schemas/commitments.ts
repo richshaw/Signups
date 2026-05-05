@@ -26,21 +26,3 @@ export const CommitmentUpdateInputSchema = z.object({
   swapToSlotId: idOf('slot').optional(),
 });
 export type CommitmentUpdateInput = z.infer<typeof CommitmentUpdateInputSchema>;
-
-export const CommitmentPublicSchema = z.object({
-  id: idOf('com'),
-  slotId: idOf('slot'),
-  signupId: idOf('sig'),
-  participantName: z.string(),
-  status: z.enum(COMMITMENT_STATUSES),
-  quantity: z.number().int().positive(),
-  notes: z.string().optional(),
-  createdAt: z.string().datetime(),
-});
-
-export const CommitmentOwnSchema = CommitmentPublicSchema.extend({
-  participantEmail: z.string(),
-  /** Present only in the immediate response from POST /commitments. */
-  editToken: z.string().optional(),
-  editUrl: z.string().optional(),
-});
