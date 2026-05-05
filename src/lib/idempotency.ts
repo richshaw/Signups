@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import { idempotencyKeys } from '@/db/schema/idempotency';
 import type { Db } from '@/db/client';
 import { makeId } from './ids';
@@ -27,6 +27,7 @@ export async function findReplay(
     .where(
       and(
         eq(idempotencyKeys.key, ctx.key),
+        gt(idempotencyKeys.expiresAt, new Date()),
         ctx.organizerId != null
           ? eq(idempotencyKeys.organizerId, ctx.organizerId)
           : and(
@@ -40,7 +41,6 @@ export async function findReplay(
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (row.expiresAt.getTime() < Date.now()) return null;
   if (row.requestHash !== hashBody(ctx.requestBody)) return 'conflict';
   return { responseBody: row.responseBody, responseStatus: row.responseStatus };
 }
