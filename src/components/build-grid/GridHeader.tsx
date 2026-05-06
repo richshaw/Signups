@@ -66,7 +66,7 @@ export function GridHeader({
 
       {/* Trailing Capacity header — 90px */}
       <div className="flex items-center justify-center px-2 py-2 border-r border-surface-sunk">
-        <span className="text-[11px] text-ink-soft">Cap.</span>
+        <span className="text-[13px] font-medium text-ink truncate">Cap.</span>
       </div>
 
       {/* Trailing + button — 60px */}

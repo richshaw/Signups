@@ -234,10 +234,11 @@ export async function updateField(
     config: (data.config ?? (existing.config as SlotFieldConfig)) as SlotFieldConfig,
   };
 
+  const typeCheckDef = { ...nextDef, required: false };
   const offending: string[] = [];
   for (const row of slotRows) {
     const values = (row.values as Record<string, unknown>) ?? {};
-    const r = validateOneValue(nextDef, values[existing.ref]);
+    const r = validateOneValue(typeCheckDef, values[existing.ref]);
     if (!r.ok) offending.push(row.id);
   }
   if (offending.length > 0) {
@@ -377,6 +378,7 @@ export async function listFields(
 export function validateSlotValues(
   fields: SlotFieldDefinition[],
   values: Record<string, unknown>,
+  { enforceRequired = true }: { enforceRequired?: boolean } = {},
 ): Result<void, ServiceError> {
   const knownRefs = new Set(fields.map((f) => f.ref));
   for (const ref of Object.keys(values)) {
@@ -389,7 +391,10 @@ export function validateSlotValues(
     }
   }
   for (const field of fields) {
-    const r = validateOneValue(field, values[field.ref]);
+    const r = validateOneValue(
+      enforceRequired ? field : { ...field, required: false },
+      values[field.ref],
+    );
     if (!r.ok) return r;
   }
   return ok(undefined);
