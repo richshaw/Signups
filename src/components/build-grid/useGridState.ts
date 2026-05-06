@@ -257,10 +257,13 @@ export function useGridState(
     ): Promise<void> => {
       markSaving();
       try {
+        // Existing slots have no value for the new field, so required:true would
+        // 409. Start optional; organiser can flip required once slots are filled.
+        const effectiveRequired = stateRef.current.rows.length > 0 ? false : required;
         const res = await fetch(`/api/signups/${signupId}/fields`, {
           method: 'POST',
           headers: JSON_HEADERS,
-          body: JSON.stringify({ ref: toLabelRef(name, stateRef.current.fields.map((f) => f.ref)), label: name, fieldType: type, config, required }),
+          body: JSON.stringify({ ref: toLabelRef(name, stateRef.current.fields.map((f) => f.ref)), label: name, fieldType: type, config, required: effectiveRequired }),
         });
         if (!res.ok) throw new Error(await res.text());
         const envelope = (await res.json()) as { data: SlotFieldDefinition };
