@@ -165,16 +165,19 @@ function toGridFields(fields: SlotFieldDefinition[]): GridField[] {
   }));
 }
 
-function toLabelRef(label: string): string {
-  return (
+function toLabelRef(label: string, existingRefs: string[]): string {
+  const base =
     label
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'field'
-  );
+      .slice(0, 48) || 'field';
+  if (!existingRefs.includes(base)) return base;
+  let i = 2;
+  while (existingRefs.includes(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
 }
 
 function toStringValues(values: Record<string, unknown>): Record<string, string> {
@@ -257,7 +260,7 @@ export function useGridState(
         const res = await fetch(`/api/signups/${signupId}/fields`, {
           method: 'POST',
           headers: JSON_HEADERS,
-          body: JSON.stringify({ ref: toLabelRef(name), label: name, fieldType: type, config, required }),
+          body: JSON.stringify({ ref: toLabelRef(name, stateRef.current.fields.map((f) => f.ref)), label: name, fieldType: type, config, required }),
         });
         if (!res.ok) throw new Error(await res.text());
         const envelope = (await res.json()) as { data: SlotFieldDefinition };
