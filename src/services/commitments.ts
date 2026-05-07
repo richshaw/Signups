@@ -137,7 +137,7 @@ export async function commitToSlot(
     }
 
     // Upsert participant by normalized email
-    const emailLower = data.email.toLowerCase().trim();
+    const emailLower = data.email;
     const existingPart = await tx
       .select()
       .from(participants)
