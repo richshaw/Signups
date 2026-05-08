@@ -1,5 +1,5 @@
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { AdapterUser } from 'next-auth/adapters';
 import { getDb } from '@/db/client';
 import { organizers } from '@/db/schema/organizers';
@@ -27,6 +27,15 @@ export function SignupAdapter() {
 
   return {
     ...base,
+    async getUserByEmail(email: string): Promise<AdapterUser | null> {
+      const [row] = await db
+        .select()
+        .from(organizers)
+        .where(sql`lower(${organizers.email}) = ${email.toLowerCase()}`)
+        .limit(1);
+      if (!row) return null;
+      return { id: row.id, email: row.email, emailVerified: row.emailVerified, name: row.name, image: row.image };
+    },
     async createUser(user: AdapterUser): Promise<AdapterUser> {
       if (!base.createUser) throw new Error('adapter missing createUser');
       const { row, workspaceId } = await db.transaction(async (tx) => {

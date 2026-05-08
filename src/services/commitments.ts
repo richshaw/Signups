@@ -136,12 +136,11 @@ export async function commitToSlot(
       }
     }
 
-    // Upsert participant by normalized email
-    const emailLower = data.email;
+    // data.email is already lowercased by EmailSchema
     const existingPart = await tx
       .select()
       .from(participants)
-      .where(and(eq(participants.signupId, slot.signupId), eq(participants.emailLower, emailLower)))
+      .where(and(eq(participants.signupId, slot.signupId), eq(participants.emailLower, data.email)))
       .limit(1);
 
     let participantId: string;
@@ -158,7 +157,7 @@ export async function commitToSlot(
         signupId: slot.signupId,
         workspaceId: slot.workspaceId,
         email: data.email,
-        emailLower,
+        emailLower: data.email,
         name: data.name,
       });
       await recordActivity(tx, {
