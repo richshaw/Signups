@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { and, eq, count } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Db } from '@/db/client';
 import { activity } from '@/db/schema/activity';
 import { commitments } from '@/db/schema/commitments';
@@ -401,7 +401,7 @@ describe('commitToSlot participant dedup (db)', () => {
     expect(r2.value.commitment.participantId).toBe(r1.value.commitment.participantId);
 
     const [row] = await fx.db
-      .select({ n: count() })
+      .select({ n: sql<number>`count(*)::int` })
       .from(participants)
       .where(eq(participants.signupId, signupId));
     expect(row?.n).toBe(1);
