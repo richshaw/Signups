@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { Db } from '@/db/client';
 import { commitments } from '@/db/schema/commitments';
 import { signups } from '@/db/schema/signups';
+import { slotFields } from '@/db/schema/slot-fields';
 import { slots } from '@/db/schema/slots';
 import { recordActivity } from '@/lib/activity';
 import { serviceError, ServiceException, type ServiceError } from '@/lib/errors';
@@ -9,14 +10,16 @@ import { makeId } from '@/lib/ids';
 import { parseInputSafe } from '@/lib/parse';
 import { requireOrganizerId, requireWorkspaceAccess, requireWorkspaceWrite, type Actor } from '@/lib/policy';
 import { err, ok, type Result } from '@/lib/result';
+import { DEFAULT_TEMPLATE, type SignupTemplate } from '@/lib/signup-templates';
 import { toSlug } from '@/lib/slug';
-import type { SlotFieldDefinition } from '@/schemas/slot-fields';
+import { type SlotFieldDefinition, SlotFieldInputSchema } from '@/schemas/slot-fields';
 import {
   type SignupStatus,
   SignupCreateInputSchema,
   SignupUpdateInputSchema,
 } from '@/schemas/signups';
 import { listFieldsForSignup, recomputeSlotAtForSignup } from './slot-fields';
+import { pickAvailableRef, summarizeValues } from './slots';
 
 type SignupRow = typeof signups.$inferSelect;
 
@@ -30,6 +33,7 @@ export async function createSignup(
   actor: Actor,
   workspaceId: string,
   rawInput: unknown,
+  opts: { template?: SignupTemplate } = {},
 ): Promise<Result<SignupRow, ServiceError>> {
   requireWorkspaceWrite(actor, workspaceId);
   if (actor.kind !== 'organizer') {
@@ -39,6 +43,20 @@ export async function createSignup(
   const input = parseInputSafe(SignupCreateInputSchema, rawInput);
   if (!input.ok) return input;
   const data = input.value;
+
+  const template = opts.template ?? DEFAULT_TEMPLATE;
+
+  for (const field of template.fields) {
+    const parsed = SlotFieldInputSchema.safeParse(field);
+    if (!parsed.success) {
+      return err(
+        serviceError('invalid_input', `template "${template.id}" has an invalid field`, {
+          field: 'template',
+          details: { templateId: template.id, error: parsed.error.flatten() },
+        }),
+      );
+    }
+  }
 
   const id = makeId('sig');
   const slug = await pickAvailableSlug(db, data.title);
@@ -62,12 +80,45 @@ export async function createSignup(
       .returning();
     if (!inserted) throw new Error('insert failed');
 
+    for (const field of template.fields) {
+      await tx.insert(slotFields).values({
+        id: makeId('fld'),
+        signupId: inserted.id,
+        workspaceId,
+        ref: field.ref,
+        label: field.label,
+        fieldType: field.fieldType,
+        required: field.required,
+        sortOrder: field.sortOrder,
+        config: field.config,
+      });
+    }
+
+    for (const [index, slot] of template.slots.entries()) {
+      const ref = await pickAvailableRef(tx, inserted.id, summarizeValues(slot.values));
+      await tx.insert(slots).values({
+        id: makeId('slot'),
+        signupId: inserted.id,
+        workspaceId,
+        ref,
+        values: slot.values,
+        capacity: slot.capacity,
+        sortOrder: slot.sortOrder ?? index,
+        status: 'open',
+      });
+    }
+
     await recordActivity(tx, {
       signupId: inserted.id,
       workspaceId,
       actor: { actorId: requireOrganizerId(actor), actorType: 'organizer' },
       eventType: 'signup.created',
-      payload: { title: inserted.title },
+      payload: {
+        title: inserted.title,
+        templateId: template.id,
+        fieldsAdded: template.fields.length,
+        slotsAdded: template.slots.length,
+      },
     });
     return inserted;
   });

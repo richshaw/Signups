@@ -258,7 +258,7 @@ export async function listSlotsForSignup(db: Db, signupId: string) {
     .orderBy(asc(slots.sortOrder), asc(slots.slotAt), asc(slots.createdAt));
 }
 
-function summarizeValues(values: Record<string, unknown>): string {
+export function summarizeValues(values: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const val of Object.values(values)) {
     if (val === undefined || val === null || val === '') continue;
@@ -268,7 +268,7 @@ function summarizeValues(values: Record<string, unknown>): string {
   return parts.join('-') || 'slot';
 }
 
-async function pickAvailableRef(db: Queryable, signupId: string, seed: string): Promise<string> {
+export async function pickAvailableRef(db: Queryable, signupId: string, seed: string): Promise<string> {
   const base = toSlug(seed, { suffix: false, fallback: 'slot' });
   for (let i = 0; i < 6; i++) {
     const candidate = i === 0 ? base : `${base}-${toSlug(`${Date.now()}-${i}`, { suffix: false })}`;
