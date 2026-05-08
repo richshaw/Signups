@@ -6,6 +6,7 @@ import { Banner } from '@/components/banner';
 import CommitDialog from './commit-dialog';
 import {
   buildMetaSegments,
+  formatGroupLabel,
   pickPrimaryField,
   renderFieldValue,
 } from './slot-format';
@@ -86,7 +87,7 @@ function groupSlots(
     const raw = slot.values[groupField.ref];
     const isUnset = raw === undefined || raw === null || raw === '';
     const key = isUnset ? '__unset__' : String(raw);
-    const label = isUnset ? `(no ${groupField.label.toLowerCase()})` : String(raw);
+    const label = formatGroupLabel(groupField, raw);
     const existing = map.get(key);
     if (existing) {
       existing.slots.push(slot);

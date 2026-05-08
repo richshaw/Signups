@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildMetaSegments,
+  formatGroupLabel,
   formatSlotDate,
   pickPrimaryField,
   renderFieldValue,
@@ -20,6 +21,11 @@ const fields: SignupViewField[] = [
 ];
 
 describe('formatSlotDate', () => {
+  const originalTZ = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = originalTZ;
+  });
+
   it('returns null for null/empty/invalid', () => {
     expect(formatSlotDate(null)).toBeNull();
     expect(formatSlotDate(undefined)).toBeNull();
@@ -32,6 +38,17 @@ describe('formatSlotDate', () => {
     // by asserting the shape rather than the exact string.
     const out = formatSlotDate('2026-04-25T15:00:00Z');
     expect(out).toMatch(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+  });
+
+  it('renders YYYY-MM-DD on the same calendar day across timezones', () => {
+    // 2026-04-25 is a Saturday. With `new Date('2026-04-25')` the value parses
+    // as UTC midnight, then `toLocaleDateString` shifts to the host TZ — so in
+    // negative offsets it would render as Fri, Apr 24. Verify both sides of
+    // UTC return the intended calendar day.
+    process.env.TZ = 'America/Los_Angeles';
+    expect(formatSlotDate('2026-04-25')).toBe('Sat, Apr 25');
+    process.env.TZ = 'Pacific/Auckland';
+    expect(formatSlotDate('2026-04-25')).toBe('Sat, Apr 25');
   });
 });
 
@@ -117,5 +134,25 @@ describe('buildMetaSegments', () => {
     expect(
       buildMetaSegments({ fields, slot: reordered }),
     ).toEqual(['Game 1', 'vs Hawks', 'Field B']);
+  });
+});
+
+describe('formatGroupLabel', () => {
+  it('formats the value via renderFieldValue (date stays a date)', () => {
+    const date: SignupViewField = { ref: 'd', label: 'Date', fieldType: 'date' };
+    expect(formatGroupLabel(date, '2026-04-25')).toMatch(
+      /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/,
+    );
+  });
+
+  it('passes text values through', () => {
+    expect(formatGroupLabel(text('g', 'Game'), 'GAME 1')).toBe('GAME 1');
+  });
+
+  it('falls back to "(no <label>)" for empty/null/undefined', () => {
+    const game = text('g', 'Game');
+    expect(formatGroupLabel(game, undefined)).toBe('(no game)');
+    expect(formatGroupLabel(game, null)).toBe('(no game)');
+    expect(formatGroupLabel(game, '')).toBe('(no game)');
   });
 });
