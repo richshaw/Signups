@@ -5,9 +5,12 @@ import { activity } from '@/db/schema/activity';
 import { workspaceMembers } from '@/db/schema/members';
 import { organizers } from '@/db/schema/organizers';
 import { signups } from '@/db/schema/signups';
+import { slots } from '@/db/schema/slots';
 import { workspaces } from '@/db/schema/workspaces';
 import { makeId } from '@/lib/ids';
 import type { Actor, WorkspaceRole } from '@/lib/policy';
+import { DEFAULT_TEMPLATE, EMPTY_TEMPLATE, type SignupTemplate } from '@/lib/signup-templates';
+import { listFieldsForSignup } from '@/services/slot-fields';
 import { addSlot } from '@/services/slots';
 import { commitToSlot } from '@/services/commitments';
 import {
@@ -137,6 +140,253 @@ describe('signups service (db)', () => {
       } finally {
         await teardownWorkspace(viewerFx.db, viewerFx.workspaceId, viewerFx.organizerId);
       }
+    });
+
+    it('applies DEFAULT_TEMPLATE when no opts.template is supplied', async () => {
+      const r = await createSignup(fx.db, fx.actor, fx.workspaceId, validCreateInput('Default tmpl'));
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+
+      const fields = await listFieldsForSignup(fx.db, r.value.id);
+      expect(fields).toHaveLength(1);
+      expect(fields[0]!.ref).toBe('date');
+      expect(fields[0]!.fieldType).toBe('date');
+      expect(fields[0]!.required).toBe(true);
+
+      const slotRows = await fx.db
+        .select()
+        .from(slots)
+        .where(eq(slots.signupId, r.value.id));
+      expect(slotRows).toHaveLength(1);
+      expect(slotRows[0]!.capacity).toBe(1);
+      expect(slotRows[0]!.values).toEqual({});
+      expect(slotRows[0]!.status).toBe('open');
+
+      const acts = await fx.db.select().from(activity).where(eq(activity.signupId, r.value.id));
+      const created = acts.find((a) => a.eventType === 'signup.created');
+      expect(created).toBeDefined();
+      const payload = created!.payload as Record<string, unknown>;
+      expect(payload.templateId).toBe(DEFAULT_TEMPLATE.id);
+      expect(payload.fieldsAdded).toBe(1);
+      expect(payload.slotsAdded).toBe(1);
+    });
+
+    it('applies a custom template when supplied', async () => {
+      const custom: SignupTemplate = {
+        id: 'date-and-item',
+        fields: [
+          {
+            ref: 'date',
+            label: 'Date',
+            fieldType: 'date',
+            required: true,
+            sortOrder: 0,
+            config: { fieldType: 'date' },
+          },
+          {
+            ref: 'item',
+            label: 'Item',
+            fieldType: 'text',
+            required: false,
+            sortOrder: 1,
+            config: { fieldType: 'text', maxLength: 200 },
+          },
+        ],
+        slots: [
+          { capacity: 2, values: {}, sortOrder: 0 },
+          { capacity: 5, values: {}, sortOrder: 1 },
+        ],
+      };
+
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Custom tmpl'),
+        { template: custom },
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+
+      const fields = await listFieldsForSignup(fx.db, r.value.id);
+      expect(fields.map((f) => f.ref)).toEqual(['date', 'item']);
+
+      const slotRows = await fx.db
+        .select()
+        .from(slots)
+        .where(eq(slots.signupId, r.value.id));
+      expect(slotRows).toHaveLength(2);
+      const capacities = slotRows.map((s) => s.capacity).sort();
+      expect(capacities).toEqual([2, 5]);
+    });
+
+    it('rejects a template with duplicate field refs (no DB writes)', async () => {
+      const broken: SignupTemplate = {
+        id: 'broken',
+        fields: [
+          {
+            ref: 'date',
+            label: 'Date',
+            fieldType: 'date',
+            required: true,
+            sortOrder: 0,
+            config: { fieldType: 'date' },
+          },
+          {
+            ref: 'date',
+            label: 'Date again',
+            fieldType: 'date',
+            required: true,
+            sortOrder: 1,
+            config: { fieldType: 'date' },
+          },
+        ],
+        slots: [{ capacity: 1, values: {}, sortOrder: 0 }],
+      };
+
+      const before = await fx.db
+        .select({ id: signups.id })
+        .from(signups)
+        .where(eq(signups.workspaceId, fx.workspaceId));
+      const beforeCount = before.length;
+
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Dup ref'),
+        { template: broken },
+      );
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('invalid_input');
+      expect(r.error.message).toMatch(/duplicate field ref/);
+
+      const after = await fx.db
+        .select({ id: signups.id })
+        .from(signups)
+        .where(eq(signups.workspaceId, fx.workspaceId));
+      expect(after.length).toBe(beforeCount);
+    });
+
+    it('rejects a template whose slot capacity is not a positive integer', async () => {
+      const bad: SignupTemplate = {
+        id: 'zero-cap',
+        fields: [],
+        slots: [{ capacity: 0, values: {}, sortOrder: 0 }],
+      };
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Zero cap'),
+        { template: bad },
+      );
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('invalid_input');
+      expect(r.error.message).toMatch(/invalid slot/);
+    });
+
+    it('rejects a template whose slot values reference an unknown field', async () => {
+      const bad: SignupTemplate = {
+        id: 'unknown-ref',
+        fields: [
+          {
+            ref: 'date',
+            label: 'Date',
+            fieldType: 'date',
+            required: true,
+            sortOrder: 0,
+            config: { fieldType: 'date' },
+          },
+        ],
+        slots: [{ capacity: 1, values: { nope: 'x' }, sortOrder: 0 }],
+      };
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Unknown ref'),
+        { template: bad },
+      );
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('invalid_input');
+      expect(r.error.message).toMatch(/unknown field ref/);
+    });
+
+    it('computes slotAt for template slots when reminderFromFieldRef is set and values include a date', async () => {
+      const tmpl: SignupTemplate = {
+        id: 'date-with-values',
+        fields: [
+          {
+            ref: 'date',
+            label: 'Date',
+            fieldType: 'date',
+            required: true,
+            sortOrder: 0,
+            config: { fieldType: 'date' },
+          },
+        ],
+        slots: [{ capacity: 1, values: { date: '2027-01-15' }, sortOrder: 0 }],
+      };
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        { ...validCreateInput('Slot at'), settings: { reminderFromFieldRef: 'date' } },
+        { template: tmpl },
+      );
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+
+      const slotRows = await fx.db
+        .select()
+        .from(slots)
+        .where(eq(slots.signupId, r.value.id));
+      expect(slotRows).toHaveLength(1);
+      expect(slotRows[0]!.slotAt).toEqual(new Date('2027-01-15T00:00:00.000Z'));
+    });
+
+    it('rejects a template with an invalid field shape (no DB writes)', async () => {
+      const before = await fx.db
+        .select({ id: signups.id })
+        .from(signups)
+        .where(eq(signups.workspaceId, fx.workspaceId));
+      const beforeCount = before.length;
+
+      const bad: SignupTemplate = {
+        id: 'bad',
+        fields: [
+          {
+            ref: 'NotKebab',
+            label: 'X',
+            fieldType: 'text',
+            required: true,
+            sortOrder: 0,
+            config: { fieldType: 'text', maxLength: 200 },
+          },
+        ],
+        slots: [],
+      };
+
+      const r = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Bad template'),
+        { template: bad },
+      );
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('invalid_input');
+
+      const after = await fx.db
+        .select({ id: signups.id })
+        .from(signups)
+        .where(eq(signups.workspaceId, fx.workspaceId));
+      expect(after.length).toBe(beforeCount);
     });
   });
 
@@ -282,7 +532,13 @@ describe('signups service (db)', () => {
     });
 
     it('publishSignup rejects when no slots', async () => {
-      const created = await createSignup(fx.db, fx.actor, fx.workspaceId, validCreateInput('Empty'));
+      const created = await createSignup(
+        fx.db,
+        fx.actor,
+        fx.workspaceId,
+        validCreateInput('Empty'),
+        { template: EMPTY_TEMPLATE },
+      );
       if (!created.ok) throw new Error('setup failed');
 
       const r = await publishSignup(fx.db, fx.actor, created.value.id);
