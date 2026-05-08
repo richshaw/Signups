@@ -11,20 +11,12 @@ export function formatSlotDate(iso: string | null | undefined): string | null {
   });
 }
 
-// Rule (option A — field order, with demote-on-collision):
-//   1. Explicit primaryRef wins, unless it equals groupRef.
-//   2. Otherwise the first field in definition order, skipping the group field.
-//   3. Returns null if every field is the group field.
+// Returns the first field in definition order, skipping the group field.
+// Returns null if every field is the group field (or there are no fields).
 export function pickPrimaryField(
   fields: readonly SignupViewField[],
-  primaryRef?: string | null,
   groupRef?: string | null,
 ): SignupViewField | null {
-  if (!fields.length) return null;
-  if (primaryRef && primaryRef !== groupRef) {
-    const f = fields.find((x) => x.ref === primaryRef);
-    if (f) return f;
-  }
   for (const f of fields) {
     if (f.ref === groupRef) continue;
     return f;

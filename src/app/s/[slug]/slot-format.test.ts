@@ -40,25 +40,17 @@ describe('pickPrimaryField', () => {
     expect(pickPrimaryField([])).toBeNull();
   });
 
-  it('uses explicit primaryRef when set and not the group', () => {
-    expect(pickPrimaryField(fields, 'opponent')?.ref).toBe('opponent');
-  });
-
-  it('falls back to first field when primaryRef missing', () => {
+  it('returns the first field when no group is set', () => {
     expect(pickPrimaryField(fields)?.ref).toBe('game');
   });
 
-  it('demotes when primaryRef equals groupRef', () => {
-    expect(pickPrimaryField(fields, 'game', 'game')?.ref).toBe('opponent');
-  });
-
-  it('skips the group field when picking the fallback', () => {
-    expect(pickPrimaryField(fields, undefined, 'game')?.ref).toBe('opponent');
+  it('skips the group field and returns the next', () => {
+    expect(pickPrimaryField(fields, 'game')?.ref).toBe('opponent');
   });
 
   it('returns null when only field is the group field', () => {
     const single = [text('game', 'Game')];
-    expect(pickPrimaryField(single, undefined, 'game')).toBeNull();
+    expect(pickPrimaryField(single, 'game')).toBeNull();
   });
 });
 
@@ -73,6 +65,7 @@ describe('renderFieldValue', () => {
     expect(renderFieldValue(text('a', 'A'), 'hello')).toBe('hello');
     const num: SignupViewField = { ref: 'n', label: 'N', fieldType: 'number' };
     expect(renderFieldValue(num, 12)).toBe('12');
+    expect(renderFieldValue(num, 0)).toBe('0');
   });
 
   it('formats date fields using slot-date format', () => {

@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import type { SignupStatus } from '@/schemas/signups';
+import type { SlotStatus } from '@/schemas/slots';
+import type { SlotFieldDefinition } from '@/schemas/slot-fields';
 import { Banner } from '@/components/banner';
 import CommitDialog from './commit-dialog';
 import {
   buildMetaSegments,
-  formatSlotDate,
   pickPrimaryField,
   renderFieldValue,
 } from './slot-format';
@@ -15,6 +16,44 @@ import type {
 } from './signup-view-types';
 
 export type { OwnCommitment, SignupViewField, SignupViewSlot };
+
+interface SourceSlot {
+  id: string;
+  ref: string;
+  values: unknown;
+  slotAt: Date | null;
+  capacity: number | null;
+  status: string;
+}
+
+interface SourceField {
+  ref: string;
+  label: string;
+  fieldType: SlotFieldDefinition['fieldType'];
+}
+
+export function toSignupViewSlots(
+  slots: readonly SourceSlot[],
+  committedBySlot?: Record<string, number>,
+): SignupViewSlot[] {
+  return slots.map((slot) => ({
+    id: slot.id,
+    ref: slot.ref,
+    values: (slot.values as Record<string, unknown>) ?? {},
+    slotAt: slot.slotAt ? slot.slotAt.toISOString() : null,
+    capacity: slot.capacity,
+    status: slot.status as SlotStatus,
+    committed: committedBySlot?.[slot.id] ?? 0,
+  }));
+}
+
+export function toSignupViewFields(fields: readonly SourceField[]): SignupViewField[] {
+  return fields.map((f) => ({
+    ref: f.ref,
+    label: f.label,
+    fieldType: f.fieldType,
+  }));
+}
 
 interface SignupViewProps {
   signup: {
@@ -63,12 +102,10 @@ function groupSlots(
   });
 }
 
-function slotTitleFor(
+function titleFor(
   slot: SignupViewSlot,
-  fields: SignupViewField[],
-  groupRef: string | null,
+  primary: SignupViewField | null,
 ): string {
-  const primary = pickPrimaryField(fields, undefined, groupRef);
   const value = primary ? renderFieldValue(primary, slot.values[primary.ref]) : null;
   return value || slot.ref;
 }
@@ -88,12 +125,14 @@ export default function SignupView({
   const groupField =
     groupByRef ? fields.find((f) => f.ref === groupByRef) ?? null : null;
   const groupRef = groupField?.ref ?? null;
+  const primary = pickPrimaryField(fields, groupRef);
+  const primaryRef = primary?.ref;
   const groups = groupSlots(slots, groupField);
   const ownBySlot = new Map((ownCommitments ?? []).map((c) => [c.slotId, c]));
   const firstOwn = ownCommitments?.[0] ?? null;
   const ownCount = ownCommitments?.length ?? 0;
   const firstOwnSlot = firstOwn ? slots.find((s) => s.id === firstOwn.slotId) ?? null : null;
-  const firstOwnTitle = firstOwnSlot ? slotTitleFor(firstOwnSlot, fields, groupRef) : '';
+  const firstOwnTitle = firstOwnSlot ? titleFor(firstOwnSlot, primary) : '';
 
   const previewCopy =
     signup.status === 'draft'
@@ -156,27 +195,8 @@ export default function SignupView({
               {group.slots.map((slot, idx) => {
                 const full = slot.capacity !== null && slot.committed >= slot.capacity;
                 const closed = slot.status !== 'open' || effectiveStatus !== 'open' || full;
-                const primary = pickPrimaryField(fields, undefined, groupRef);
-                const primaryValue = primary
-                  ? renderFieldValue(primary, slot.values[primary.ref])
-                  : null;
-                const title = primaryValue || slot.ref;
-                const slotAtFormatted = formatSlotDate(slot.slotAt);
-                const fieldSegments = buildMetaSegments({
-                  fields,
-                  slot,
-                  primaryRef: primary?.ref,
-                  groupRef,
-                });
-                const meta: string[] = [];
-                if (slotAtFormatted && slotAtFormatted !== title) {
-                  meta.push(slotAtFormatted);
-                }
-                for (const seg of fieldSegments) {
-                  if (seg === title) continue;
-                  if (slotAtFormatted && seg === slotAtFormatted) continue;
-                  meta.push(seg);
-                }
+                const title = titleFor(slot, primary);
+                const meta = buildMetaSegments({ fields, slot, primaryRef, groupRef });
                 const own = ownBySlot.get(slot.id) ?? null;
                 const isOwn = own !== null;
                 return (

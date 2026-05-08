@@ -4,12 +4,11 @@ import { after } from 'next/server';
 import { getDb } from '@/db/client';
 import { getOrganizerSession, toActor } from '@/auth/session';
 import type { SignupStatus } from '@/schemas/signups';
-import type { SlotStatus } from '@/schemas/slots';
 import { getSignupForOrganizer } from '@/services/signups';
 import { recordOrganizerView } from '@/lib/view-tracker';
 import SignupView, {
-  type SignupViewField,
-  type SignupViewSlot,
+  toSignupViewFields,
+  toSignupViewSlots,
 } from '@/app/s/[slug]/signup-view';
 
 export const metadata = { title: 'Preview · OpenSignup' };
@@ -43,20 +42,8 @@ export default async function SignupPreviewPage({ params }: PageParams) {
     }),
   );
 
-  const slots: SignupViewSlot[] = sig.slots.map((slot) => ({
-    id: slot.id,
-    ref: slot.ref,
-    values: (slot.values as Record<string, unknown>) ?? {},
-    slotAt: slot.slotAt ? slot.slotAt.toISOString() : null,
-    capacity: slot.capacity,
-    status: slot.status as SlotStatus,
-    committed: 0,
-  }));
-  const fields: SignupViewField[] = sig.fields.map((f) => ({
-    ref: f.ref,
-    label: f.label,
-    fieldType: f.fieldType,
-  }));
+  const slots = toSignupViewSlots(sig.slots);
+  const fields = toSignupViewFields(sig.fields);
   const settings = (sig.settings ?? {}) as { groupByFieldRefs?: string[] };
   const groupByRef = settings.groupByFieldRefs?.[0] ?? null;
 
