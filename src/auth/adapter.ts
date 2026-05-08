@@ -1,5 +1,5 @@
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { AdapterUser } from 'next-auth/adapters';
 import { getDb } from '@/db/client';
 import { organizers } from '@/db/schema/organizers';
@@ -28,10 +28,11 @@ export function SignupAdapter() {
   return {
     ...base,
     async getUserByEmail(email: string): Promise<AdapterUser | null> {
+      const normalized = email.trim().toLowerCase();
       const [row] = await db
         .select()
         .from(organizers)
-        .where(sql`lower(${organizers.email}) = ${email.toLowerCase()}`)
+        .where(eq(organizers.email, normalized))
         .limit(1);
       if (!row) return null;
       return { id: row.id, email: row.email, emailVerified: row.emailVerified, name: row.name, image: row.image };
