@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildMetaSegments,
+  formatSlotDate,
+  pickPrimaryField,
+  renderFieldValue,
+} from './slot-format';
+import type { SignupViewField } from './signup-view-types';
+
+const text = (ref: string, label: string): SignupViewField => ({
+  ref,
+  label,
+  fieldType: 'text',
+});
+
+const fields: SignupViewField[] = [
+  text('game', 'Game'),
+  text('opponent', 'Opponent'),
+  text('field', 'Field'),
+];
+
+describe('formatSlotDate', () => {
+  it('returns null for null/empty/invalid', () => {
+    expect(formatSlotDate(null)).toBeNull();
+    expect(formatSlotDate(undefined)).toBeNull();
+    expect(formatSlotDate('')).toBeNull();
+    expect(formatSlotDate('not-a-date')).toBeNull();
+  });
+
+  it('formats ISO into Weekday, Mon Day', () => {
+    // 2026-04-25 is a Saturday in UTC; we accept any locale-correct prefix
+    // by asserting the shape rather than the exact string.
+    const out = formatSlotDate('2026-04-25T15:00:00Z');
+    expect(out).toMatch(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+  });
+});
+
+describe('pickPrimaryField', () => {
+  it('returns null when no fields', () => {
+    expect(pickPrimaryField([])).toBeNull();
+  });
+
+  it('uses explicit primaryRef when set and not the group', () => {
+    expect(pickPrimaryField(fields, 'opponent')?.ref).toBe('opponent');
+  });
+
+  it('falls back to first field when primaryRef missing', () => {
+    expect(pickPrimaryField(fields)?.ref).toBe('game');
+  });
+
+  it('demotes when primaryRef equals groupRef', () => {
+    expect(pickPrimaryField(fields, 'game', 'game')?.ref).toBe('opponent');
+  });
+
+  it('skips the group field when picking the fallback', () => {
+    expect(pickPrimaryField(fields, undefined, 'game')?.ref).toBe('opponent');
+  });
+
+  it('returns null when only field is the group field', () => {
+    const single = [text('game', 'Game')];
+    expect(pickPrimaryField(single, undefined, 'game')).toBeNull();
+  });
+});
+
+describe('renderFieldValue', () => {
+  it('returns null for empty/null/undefined values', () => {
+    expect(renderFieldValue(text('a', 'A'), undefined)).toBeNull();
+    expect(renderFieldValue(text('a', 'A'), null)).toBeNull();
+    expect(renderFieldValue(text('a', 'A'), '')).toBeNull();
+  });
+
+  it('passes text/number values through as strings', () => {
+    expect(renderFieldValue(text('a', 'A'), 'hello')).toBe('hello');
+    const num: SignupViewField = { ref: 'n', label: 'N', fieldType: 'number' };
+    expect(renderFieldValue(num, 12)).toBe('12');
+  });
+
+  it('formats date fields using slot-date format', () => {
+    const date: SignupViewField = { ref: 'd', label: 'D', fieldType: 'date' };
+    const out = renderFieldValue(date, '2026-04-25');
+    expect(out).toMatch(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}$/);
+  });
+
+  it('falls back to raw string when date value is unparseable', () => {
+    const date: SignupViewField = { ref: 'd', label: 'D', fieldType: 'date' };
+    expect(renderFieldValue(date, 'not-a-date')).toBe('not-a-date');
+  });
+});
+
+describe('buildMetaSegments', () => {
+  const slot = { values: { game: 'Game 1', opponent: 'vs Hawks', field: 'Field B' } };
+
+  it('includes every value with no labels', () => {
+    expect(
+      buildMetaSegments({ fields, slot }),
+    ).toEqual(['Game 1', 'vs Hawks', 'Field B']);
+  });
+
+  it('skips the primary field', () => {
+    expect(
+      buildMetaSegments({ fields, slot, primaryRef: 'game' }),
+    ).toEqual(['vs Hawks', 'Field B']);
+  });
+
+  it('skips the group field', () => {
+    expect(
+      buildMetaSegments({ fields, slot, groupRef: 'field' }),
+    ).toEqual(['Game 1', 'vs Hawks']);
+  });
+
+  it('skips both primary and group', () => {
+    expect(
+      buildMetaSegments({ fields, slot, primaryRef: 'game', groupRef: 'field' }),
+    ).toEqual(['vs Hawks']);
+  });
+
+  it('omits empty values', () => {
+    const partial = { values: { game: 'Game 1', opponent: '', field: null } };
+    expect(buildMetaSegments({ fields, slot: partial })).toEqual(['Game 1']);
+  });
+
+  it('preserves field-definition order regardless of values key order', () => {
+    const reordered = { values: { field: 'Field B', opponent: 'vs Hawks', game: 'Game 1' } };
+    expect(
+      buildMetaSegments({ fields, slot: reordered }),
+    ).toEqual(['Game 1', 'vs Hawks', 'Field B']);
+  });
+});

@@ -258,7 +258,12 @@ export default function CommitDialog({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="text-lg font-semibold">Sign up for {slotTitle}</h2>
+              <div>
+                <div className="mb-1 text-xs font-medium uppercase tracking-wider text-ink-soft">
+                  Sign up for
+                </div>
+                <h2 className="text-xl font-semibold tracking-tight">{slotTitle}</h2>
+              </div>
               <label className="block">
                 <span className="mb-1 block text-sm font-medium">Your name</span>
                 <input

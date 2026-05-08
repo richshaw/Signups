@@ -122,7 +122,12 @@ export default async function PublicSignupPage({ params }: PageParams) {
   const groupByRef = settings.groupByFieldRefs?.[0] ?? null;
 
   return (
-    <main className="flex min-h-[100svh] flex-col py-8">
+    <main className="flex min-h-[100svh] flex-col pb-24 pt-10 sm:pt-14">
+      <div className="container-tight mb-7 flex items-center gap-2 text-[13px] font-medium text-ink-soft">
+        <span className="font-semibold tracking-tight text-ink">OpenSignup</span>
+        <span aria-hidden="true">·</span>
+        <span>Public signup</span>
+      </div>
       <SignupView
         signup={{
           title: sig.title,
