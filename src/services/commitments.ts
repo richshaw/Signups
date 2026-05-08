@@ -136,11 +136,12 @@ export async function commitToSlot(
       }
     }
 
-    // data.email is already lowercased by EmailSchema
+    // Preserve user-entered casing in participants.email; dedup on emailLower.
+    const emailLower = data.email.toLowerCase();
     const existingPart = await tx
       .select()
       .from(participants)
-      .where(and(eq(participants.signupId, slot.signupId), eq(participants.emailLower, data.email)))
+      .where(and(eq(participants.signupId, slot.signupId), eq(participants.emailLower, emailLower)))
       .limit(1);
 
     let participantId: string;
@@ -157,7 +158,7 @@ export async function commitToSlot(
         signupId: slot.signupId,
         workspaceId: slot.workspaceId,
         email: data.email,
-        emailLower: data.email,
+        emailLower,
         name: data.name,
       });
       await recordActivity(tx, {

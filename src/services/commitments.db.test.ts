@@ -410,7 +410,7 @@ describe('commitToSlot participant dedup (db)', () => {
       .select({ email: participants.email, emailLower: participants.emailLower })
       .from(participants)
       .where(eq(participants.id, r1.value.commitment.participantId));
-    expect(stored[0]?.email).toBe('alice@example.test');
+    expect(stored[0]?.email).toBe('Alice@Example.test');
     expect(stored[0]?.emailLower).toBe('alice@example.test');
   });
 });

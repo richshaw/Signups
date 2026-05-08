@@ -6,7 +6,7 @@ describe('EmailSchema', () => {
     expect(EmailSchema.parse('  Foo@Bar.Test ')).toBe('foo@bar.test');
   });
 
-  it('rejects invalid addresses before transforming', () => {
+  it('rejects invalid addresses', () => {
     expect(() => EmailSchema.parse('not-an-email')).toThrow();
   });
 
