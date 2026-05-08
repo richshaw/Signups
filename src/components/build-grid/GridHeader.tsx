@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, ChevronDown } from 'lucide-react';
 import { buildColsTemplate } from './columnSizing';
 import { ColumnHeaderMenu } from './ColumnHeaderMenu';
@@ -38,28 +38,35 @@ export function GridHeader({
     else buttonRefs.current.delete(id);
   }, []);
 
+  const closeMenu = useCallback(() => {
+    setOpenMenuId((prev) => {
+      if (prev) buttonRefs.current.get(prev)?.focus();
+      return null;
+    });
+  }, []);
+
   // Close on outside click + Esc while a menu is open. The menu lives in a
   // portal under document.body, so we identify it via [data-column-header-menu]
-  // rather than DOM-tree containment.
+  // rather than DOM-tree containment. `pointerdown` covers mouse, touch, and pen.
   useEffect(() => {
     if (openMenuId === null) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest('[data-column-header-button]')) return;
       if (target.closest('[data-column-header-menu]')) return;
-      setOpenMenuId(null);
+      closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenuId(null);
+      if (e.key === 'Escape') closeMenu();
     };
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [openMenuId]);
+  }, [openMenuId, closeMenu]);
 
   // Clear flash highlight after a short delay.
   useEffect(() => {
@@ -71,14 +78,20 @@ export function GridHeader({
   const move = (fieldId: string, toIdx: number) => {
     onMoveField(fieldId, toIdx);
     setJustMovedId(fieldId);
-    setOpenMenuId(null);
+    closeMenu();
   };
 
-  const anchorRefFor = (id: string) => ({
-    get current() {
-      return buttonRefs.current.get(id) ?? null;
-    },
-  });
+  // Anchor ref is stable per `openMenuId` — only one menu is open at a time, so
+  // we don't need a per-field ref. Rebuilding only on `openMenuId` change keeps
+  // the menu's resize/scroll listeners attached exactly once per open.
+  const anchorRef = useMemo(
+    () => ({
+      get current() {
+        return openMenuId ? buttonRefs.current.get(openMenuId) ?? null : null;
+      },
+    }),
+    [openMenuId],
+  );
 
   return (
     <div
@@ -140,11 +153,11 @@ export function GridHeader({
             />
             {isOpen && (
               <ColumnHeaderMenu
-                anchorRef={anchorRefFor(f.id)}
+                anchorRef={anchorRef}
                 isFirst={i === 0}
                 isLast={i === fields.length - 1}
                 onEdit={() => {
-                  setOpenMenuId(null);
+                  closeMenu();
                   onEditField(f);
                 }}
                 onMoveLeft={() => move(f.id, i - 1)}
@@ -152,7 +165,7 @@ export function GridHeader({
                 onMoveStart={() => move(f.id, 0)}
                 onMoveEnd={() => move(f.id, fields.length - 1)}
                 onDelete={() => {
-                  setOpenMenuId(null);
+                  closeMenu();
                   onDeleteField(f.id);
                 }}
               />
