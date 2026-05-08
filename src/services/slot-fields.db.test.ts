@@ -9,6 +9,7 @@ import { slots } from '@/db/schema/slots';
 import { workspaces } from '@/db/schema/workspaces';
 import { makeId } from '@/lib/ids';
 import type { Actor } from '@/lib/policy';
+import { EMPTY_TEMPLATE } from '@/lib/signup-templates';
 import {
   addField,
   deleteField,
@@ -71,13 +72,19 @@ async function teardown(fx: Fixture): Promise<void> {
 }
 
 async function createTestSignup(fx: Fixture, title = 'Field Test'): Promise<string> {
-  const r = await createSignup(fx.db, fx.actor, fx.workspaceId, {
-    title,
-    description: '',
-    tags: [],
-    visibility: 'unlisted',
-    settings: {},
-  });
+  const r = await createSignup(
+    fx.db,
+    fx.actor,
+    fx.workspaceId,
+    {
+      title,
+      description: '',
+      tags: [],
+      visibility: 'unlisted',
+      settings: {},
+    },
+    { template: EMPTY_TEMPLATE },
+  );
   if (!r.ok) throw new Error('signup setup failed');
   return r.value.id;
 }
