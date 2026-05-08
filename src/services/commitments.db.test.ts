@@ -398,10 +398,19 @@ describe('commitToSlot participant dedup (db)', () => {
     });
     if (!r2.ok) throw new Error(`second commit failed: ${r2.error.message}`);
 
+    expect(r2.value.commitment.participantId).toBe(r1.value.commitment.participantId);
+
     const [row] = await fx.db
       .select({ n: count() })
       .from(participants)
       .where(eq(participants.signupId, signupId));
     expect(row?.n).toBe(1);
+
+    const stored = await fx.db
+      .select({ email: participants.email, emailLower: participants.emailLower })
+      .from(participants)
+      .where(eq(participants.id, r1.value.commitment.participantId));
+    expect(stored[0]?.email).toBe('alice@example.test');
+    expect(stored[0]?.emailLower).toBe('alice@example.test');
   });
 });
