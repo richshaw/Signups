@@ -10,10 +10,9 @@ import {
 } from '@/lib/returning-participant';
 import { readRequestSignals, recordPublicView } from '@/lib/view-tracker';
 import type { SignupStatus } from '@/schemas/signups';
-import type { SlotStatus } from '@/schemas/slots';
 import { getOwnCommitmentsForSignup } from '@/services/commitments';
 import { loadPublicSignup } from '@/services/signups.cached';
-import SignupView, { type SignupViewField, type SignupViewSlot } from './signup-view';
+import SignupView, { toSignupViewFields, toSignupViewSlots } from './signup-view';
 
 type PageParams = { params: Promise<{ slug: string }> };
 
@@ -104,25 +103,18 @@ export default async function PublicSignupPage({ params }: PageParams) {
     }),
   );
 
-  const slots: SignupViewSlot[] = sig.slots.map((slot) => ({
-    id: slot.id,
-    ref: slot.ref,
-    values: (slot.values as Record<string, unknown>) ?? {},
-    slotAt: slot.slotAt ? slot.slotAt.toISOString() : null,
-    capacity: slot.capacity,
-    status: slot.status as SlotStatus,
-    committed: sig.committedBySlot[slot.id] ?? 0,
-  }));
-  const fields: SignupViewField[] = sig.fields.map((f) => ({
-    ref: f.ref,
-    label: f.label,
-    fieldType: f.fieldType,
-  }));
+  const slots = toSignupViewSlots(sig.slots, sig.committedBySlot);
+  const fields = toSignupViewFields(sig.fields);
   const settings = (sig.settings ?? {}) as { groupByFieldRefs?: string[] };
   const groupByRef = settings.groupByFieldRefs?.[0] ?? null;
 
   return (
-    <main className="flex min-h-[100svh] flex-col py-8">
+    <main className="flex min-h-[100svh] flex-col pb-24 pt-10 sm:pt-14">
+      <div className="container-tight mb-7 flex items-center gap-2 text-[13px] font-medium text-ink-soft">
+        <span className="font-semibold tracking-tight text-ink">OpenSignup</span>
+        <span aria-hidden="true">·</span>
+        <span>Public signup</span>
+      </div>
       <SignupView
         signup={{
           title: sig.title,
