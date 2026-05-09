@@ -10,7 +10,7 @@ import type { GridField } from './useGridState';
 
 type FieldEditorMode =
   | { mode: 'edit'; field: GridField }
-  | { mode: 'create'; type: 'enum' };
+  | { mode: 'create' };
 
 type FieldEditorProps = {
   editorMode: FieldEditorMode;
@@ -39,12 +39,12 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
 
   const [name, setName] = useState<string>(() => {
     if (editorMode.mode === 'edit') return editorMode.field.name;
-    return FIELD_TYPE_META[editorMode.type].defaultName;
+    return '';
   });
 
   const [fieldType, setFieldType] = useState<FieldType>(() => {
     if (editorMode.mode === 'edit') return editorMode.field.type;
-    return 'enum';
+    return 'text';
   });
 
   const [required, setRequired] = useState<boolean>(() => {
@@ -84,7 +84,8 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
     onSave(fieldType, name.trim(), buildConfig(fieldType, parsedChoices), required);
   }
 
-  const titleText = isEdit ? 'Edit column' : 'New list column';
+  const titleText = isEdit ? 'Edit column' : 'New column';
+  const canSave = name.trim().length > 0;
 
   return (
     <Dialog.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -191,7 +192,8 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
               </div>
               <button
                 onClick={handleSave}
-                className="bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors"
+                disabled={!canSave}
+                className="bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand"
               >
                 Save
               </button>

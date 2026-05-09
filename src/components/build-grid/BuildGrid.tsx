@@ -5,15 +5,13 @@ import { Plus } from 'lucide-react';
 import { useGridState } from './useGridState';
 import type { GridField } from './useGridState';
 import { totalGridWidth } from './columnSizing';
-import { FIELD_TYPE_META } from './fieldTypes';
 import { Toolbar } from './Toolbar';
 import { ScrollableTable } from './ScrollableTable';
 import { GridHeader } from './GridHeader';
 import { GridBody } from './GridBody';
 import { SideRail } from './SideRail';
-import { FieldPicker } from './FieldPicker';
 import { FieldEditor } from './FieldEditor';
-import type { SlotFieldDefinition, SlotFieldConfig, FieldType } from '@/schemas/slot-fields';
+import type { SlotFieldDefinition } from '@/schemas/slot-fields';
 import type { SignupSettings } from '@/schemas/signups';
 
 type BuildGridProps = {
@@ -27,15 +25,6 @@ type BuildGridProps = {
   }>;
   initialSettings: SignupSettings;
 };
-
-function buildDefaultConfig(type: Exclude<FieldType, 'enum'>): SlotFieldConfig {
-  switch (type) {
-    case 'text':   return { fieldType: 'text', maxLength: 200 };
-    case 'date':   return { fieldType: 'date' };
-    case 'time':   return { fieldType: 'time' };
-    case 'number': return { fieldType: 'number' };
-  }
-}
 
 function AddRowAffordance({ onAdd }: { onAdd: () => void }) {
   return (
@@ -82,7 +71,6 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
     initialSettings,
   );
 
-  const [showFieldPicker, setShowFieldPicker] = useState(false);
   const [editingField, setEditingField] = useState<GridField | null>(null);
   const [showFieldEditorCreate, setShowFieldEditorCreate] = useState(false);
 
@@ -101,13 +89,13 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
             showPreview={state.showPreview}
             onTogglePreview={() => setShowPreview(!state.showPreview)}
             saveStatus={state.saveStatus}
-            onAddField={() => setShowFieldPicker(true)}
+            onAddField={() => setShowFieldEditorCreate(true)}
           />
           <ScrollableTable totalWidth={totalGridWidth(state.fields)}>
             <GridHeader
               fields={state.fields}
               onEditField={(field) => setEditingField(field)}
-              onAddField={() => setShowFieldPicker(true)}
+              onAddField={() => setShowFieldEditorCreate(true)}
               onDeleteField={(fieldId) => { void deleteField(fieldId); }}
               onMoveField={(fieldId, toIdx) => { void moveField(fieldId, toIdx); }}
               onResize={(fieldId, width) => setFieldWidth(fieldId, width)}
@@ -140,22 +128,6 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
       </div>
 
       {/* Modals */}
-      {showFieldPicker && (
-        <FieldPicker
-          onPick={(type) => {
-            const config = buildDefaultConfig(type);
-            const name = FIELD_TYPE_META[type].defaultName;
-            void addField(type, name, config, true);
-            setShowFieldPicker(false);
-          }}
-          onPickEnum={() => {
-            setShowFieldPicker(false);
-            setShowFieldEditorCreate(true);
-          }}
-          onClose={() => setShowFieldPicker(false)}
-        />
-      )}
-
       {editingField && (
         <FieldEditor
           editorMode={{ mode: 'edit', field: editingField }}
@@ -173,7 +145,7 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
 
       {showFieldEditorCreate && (
         <FieldEditor
-          editorMode={{ mode: 'create', type: 'enum' }}
+          editorMode={{ mode: 'create' }}
           onSave={(type, name, config, required) => {
             void addField(type, name, config, required);
             setShowFieldEditorCreate(false);
