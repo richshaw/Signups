@@ -85,7 +85,10 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
   }
 
   const titleText = isEdit ? 'Edit column' : 'New column';
-  const canSave = name.trim().length > 0;
+  const canSave =
+    name.trim().length > 0 &&
+    (fieldType !== 'enum' ||
+      choicesText.split('\n').some((c) => c.trim().length > 0));
 
   return (
     <Dialog.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
