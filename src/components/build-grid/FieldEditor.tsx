@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { FIELD_TYPE_META } from './fieldTypes';
 import { FIELD_TYPES } from '@/schemas/slot-fields';
 import type { FieldType, SlotFieldConfig } from '@/schemas/slot-fields';
 import type { GridField } from './useGridState';
+import { validate } from './fieldEditorValidation';
 
 type FieldEditorMode =
   | { mode: 'edit'; field: GridField }
@@ -37,6 +38,12 @@ function buildConfig(type: FieldType, choices: string[]): SlotFieldConfig {
 export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEditorProps) {
   const isEdit = editorMode.mode === 'edit';
 
+  const reactId = useId();
+  const nameInputId = `${reactId}-name`;
+  const nameErrorId = `${reactId}-name-error`;
+  const choicesInputId = `${reactId}-choices`;
+  const choicesErrorId = `${reactId}-choices-error`;
+
   const [name, setName] = useState<string>(() => {
     if (editorMode.mode === 'edit') return editorMode.field.name;
     return '';
@@ -62,6 +69,11 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
     return '';
   });
 
+  const [submitted, setSubmitted] = useState(false);
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const choicesInputRef = useRef<HTMLTextAreaElement>(null);
+
   function handleTypeChange(type: FieldType) {
     if (type !== 'enum') {
       setChoicesText('');
@@ -70,25 +82,48 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
   }
 
   function handleSave() {
-    if (!name.trim()) return;
+    setSubmitted(true);
+    const errors = validate(name, fieldType, choicesText);
 
-    let parsedChoices: string[] = [];
-    if (fieldType === 'enum') {
-      parsedChoices = choicesText
-        .split('\n')
-        .map((c) => c.trim())
-        .filter((c) => c.length > 0);
-      if (parsedChoices.length === 0) return;
+    if (errors.name) {
+      nameInputRef.current?.focus();
+      return;
     }
+    if (errors.choices) {
+      choicesInputRef.current?.focus();
+      return;
+    }
+
+    const parsedChoices =
+      fieldType === 'enum'
+        ? choicesText
+            .split('\n')
+            .map((c) => c.trim())
+            .filter((c) => c.length > 0)
+        : [];
 
     onSave(fieldType, name.trim(), buildConfig(fieldType, parsedChoices), required);
   }
 
+  const errors = submitted ? validate(name, fieldType, choicesText) : {};
+  const nameError = errors.name;
+  const choicesErrors = errors.choices;
+
   const titleText = isEdit ? 'Edit column' : 'New column';
-  const canSave =
-    name.trim().length > 0 &&
-    (fieldType !== 'enum' ||
-      choicesText.split('\n').some((c) => c.trim().length > 0));
+
+  const nameInputClasses = [
+    'border rounded-lg px-2.5 py-2 text-sm font-[inherit] outline-none bg-white w-full',
+    nameError
+      ? 'border-danger focus:border-danger focus:ring-1 focus:ring-danger'
+      : 'border-surface-sunk focus:border-brand focus:ring-1 focus:ring-brand',
+  ].join(' ');
+
+  const choicesInputClasses = [
+    'border rounded-lg px-2.5 py-2 text-sm font-[inherit] outline-none bg-white w-full min-h-[80px] resize-y',
+    choicesErrors
+      ? 'border-danger focus:border-danger focus:ring-1 focus:ring-danger'
+      : 'border-surface-sunk focus:border-brand focus:ring-1 focus:ring-brand',
+  ].join(' ');
 
   return (
     <Dialog.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -114,16 +149,25 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
             <div className="flex flex-col gap-4">
               {/* Name input */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-ink-soft" htmlFor="field-name">
-                  Name
+                <label className="text-xs font-medium text-ink-soft" htmlFor={nameInputId}>
+                  Name <span aria-hidden="true" className="text-danger">*</span>
                 </label>
                 <input
-                  id="field-name"
+                  ref={nameInputRef}
+                  id={nameInputId}
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="border border-surface-sunk rounded-lg px-2.5 py-2 text-sm font-[inherit] outline-none focus:border-brand focus:ring-1 focus:ring-brand bg-white w-full"
+                  aria-required="true"
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? nameErrorId : undefined}
+                  className={nameInputClasses}
                 />
+                {nameError && (
+                  <p id={nameErrorId} role="alert" className="text-xs text-danger">
+                    {nameError}
+                  </p>
+                )}
               </div>
 
               {/* Type pill grid */}
@@ -156,16 +200,40 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
               {/* Choices textarea (enum only) */}
               {fieldType === 'enum' && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-ink-soft" htmlFor="field-choices">
-                    Choices (one per line)
+                  <label className="text-xs font-medium text-ink-soft" htmlFor={choicesInputId}>
+                    Choices (one per line){' '}
+                    <span aria-hidden="true" className="text-danger">*</span>
                   </label>
                   <textarea
-                    id="field-choices"
+                    ref={choicesInputRef}
+                    id={choicesInputId}
                     value={choicesText}
                     onChange={(e) => setChoicesText(e.target.value)}
                     placeholder={'Apples\nBananas\nOranges'}
-                    className="border border-surface-sunk rounded-lg px-2.5 py-2 text-sm font-[inherit] outline-none focus:border-brand focus:ring-1 focus:ring-brand bg-white w-full min-h-[80px] resize-y"
+                    aria-required="true"
+                    aria-invalid={choicesErrors ? true : undefined}
+                    aria-describedby={choicesErrors ? choicesErrorId : undefined}
+                    className={choicesInputClasses}
                   />
+                  {choicesErrors && choicesErrors.length === 1 ? (
+                    <p
+                      id={choicesErrorId}
+                      role="alert"
+                      className="text-xs text-danger"
+                    >
+                      {choicesErrors[0]}
+                    </p>
+                  ) : choicesErrors ? (
+                    <ul
+                      id={choicesErrorId}
+                      role="alert"
+                      className="text-xs text-danger flex flex-col gap-0.5"
+                    >
+                      {choicesErrors.map((msg) => (
+                        <li key={msg}>{msg}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               )}
 
@@ -195,8 +263,7 @@ export function FieldEditor({ editorMode, onSave, onDelete, onClose }: FieldEdit
               </div>
               <button
                 onClick={handleSave}
-                disabled={!canSave}
-                className="bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand"
+                className="bg-brand text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand/90 transition-colors"
               >
                 Save
               </button>
