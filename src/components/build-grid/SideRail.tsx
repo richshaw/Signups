@@ -44,8 +44,8 @@ export function SideRail({ signupMeta, fields, rows, groupByFieldRef }: SideRail
         <Eye size={12} className="text-brand" />
         LIVE PREVIEW
       </span>
-      <div className="rounded-[22px] bg-[#0b1220] p-2 shadow-[0_8px_32px_rgb(11_18_32/0.12)]">
-        <div className="overflow-hidden rounded-[16px] bg-white p-4">
+      <div className="rounded-[40px] bg-[#0b1220] p-2.5 shadow-[0_20px_50px_-12px_rgb(11_18_32/0.25)]">
+        <div className="overflow-hidden rounded-[32px] bg-surface p-5">
           <div className="flex flex-col gap-7 origin-top-left" style={{ zoom: 0.7 }}>
             <SignupViewBody
               signup={{
