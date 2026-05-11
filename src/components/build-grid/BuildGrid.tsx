@@ -12,10 +12,19 @@ import { GridBody } from './GridBody';
 import { SideRail } from './SideRail';
 import { FieldEditor } from './FieldEditor';
 import type { SlotFieldDefinition } from '@/schemas/slot-fields';
-import type { SignupSettings } from '@/schemas/signups';
+import type { SignupSettings, SignupStatus } from '@/schemas/signups';
+
+/** Server-loaded signup chrome snapshot; not updated live during editing. */
+export type SignupMeta = {
+  title: string;
+  description: string | null;
+  status: SignupStatus;
+  slug: string;
+};
 
 type BuildGridProps = {
   signupId: string;
+  signupMeta: SignupMeta;
   initialFields: SlotFieldDefinition[];
   initialSlots: Array<{
     id: string;
@@ -42,7 +51,7 @@ function AddRowAffordance({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-export function BuildGrid({ signupId, initialFields, initialSlots, initialSettings }: BuildGridProps) {
+export function BuildGrid({ signupId, signupMeta, initialFields, initialSlots, initialSettings }: BuildGridProps) {
   const {
     state,
     addField,
@@ -77,7 +86,7 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
   return (
     <>
       <div
-        className={`grid gap-5 items-start ${state.showPreview ? 'grid-cols-[1fr_320px]' : 'grid-cols-[1fr]'}`}
+        className={`grid gap-5 items-start ${state.showPreview ? 'grid-cols-[minmax(720px,1fr)_minmax(380px,440px)]' : 'grid-cols-[1fr]'}`}
       >
         {/* Build Grid panel */}
         <div className="border border-surface-sunk rounded-2xl bg-white overflow-hidden min-w-0">
@@ -119,10 +128,10 @@ export function BuildGrid({ signupId, initialFields, initialSlots, initialSettin
         {/* Side Rail */}
         {state.showPreview && (
           <SideRail
+            signupMeta={signupMeta}
             fields={state.fields}
             rows={state.rows}
-            previewRowIdx={state.previewRowIdx}
-            onSelectRow={(idx) => setPreviewRow(idx)}
+            groupByFieldRef={state.groupByFieldRef}
           />
         )}
       </div>

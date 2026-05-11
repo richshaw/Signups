@@ -111,7 +111,7 @@ function titleFor(
   return value || slot.ref;
 }
 
-export default function SignupView({
+export function SignupViewBody({
   signup,
   fields,
   groupByRef,
@@ -145,7 +145,7 @@ export default function SignupView({
           : 'This signup is live. The page below shows what visitors see.';
 
   return (
-    <div className="container-tight flex flex-col gap-7">
+    <>
       {isPreview ? (
         <Banner kind="preview" title="Preview" body={previewCopy} />
       ) : effectiveStatus === 'closed' ? (
@@ -261,7 +261,14 @@ export default function SignupView({
           </section>
         ))}
       </div>
+    </>
+  );
+}
 
+export default function SignupView(props: SignupViewProps) {
+  return (
+    <div className="container-tight flex flex-col gap-7">
+      <SignupViewBody {...props} />
       <footer className="text-ink-soft pt-4 text-center text-xs">
         Ad-free · Run by OpenSignup · <Link className="underline" href="/">About</Link>
       </footer>

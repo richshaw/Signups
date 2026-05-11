@@ -4,7 +4,7 @@ import { getOrganizerSession, toActor } from '@/auth/session';
 import { loadSignupForOrganizer } from '@/services/signups.cached';
 import { recordOrganizerView } from '@/lib/view-tracker';
 import { BuildGrid } from '@/components/build-grid';
-import { SignupSettingsSchema } from '@/schemas/signups';
+import { SignupSettingsSchema, type SignupStatus } from '@/schemas/signups';
 
 type PageParams = { params: Promise<{ id: string }> };
 
@@ -26,6 +26,12 @@ export default async function BuildTab({ params }: PageParams) {
   return (
     <BuildGrid
       signupId={id}
+      signupMeta={{
+        title: sig.title,
+        description: sig.description,
+        status: sig.status as SignupStatus,
+        slug: sig.slug,
+      }}
       initialFields={sig.fields}
       initialSlots={sig.slots.map((s) => ({
         id: s.id,
