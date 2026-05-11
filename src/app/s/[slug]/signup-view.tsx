@@ -68,6 +68,9 @@ interface SignupViewProps {
   slug: string;
   mode: 'live' | 'preview';
   ownCommitments?: OwnCommitment[];
+  /** Show the preview/closed status banner. Default true; set false when the
+   *  surrounding context already conveys preview state (e.g. the build rail). */
+  showStateBanner?: boolean;
 }
 
 interface SlotGroup {
@@ -108,10 +111,10 @@ function titleFor(
   primary: SignupViewField | null,
 ): string {
   const value = primary ? renderFieldValue(primary, slot.values[primary.ref]) : null;
-  return value || slot.ref;
+  return value || 'Untitled slot';
 }
 
-export default function SignupView({
+export function SignupViewBody({
   signup,
   fields,
   groupByRef,
@@ -119,6 +122,7 @@ export default function SignupView({
   slug,
   mode,
   ownCommitments,
+  showStateBanner = true,
 }: SignupViewProps) {
   const isPreview = mode === 'preview';
   const effectiveStatus =
@@ -145,8 +149,8 @@ export default function SignupView({
           : 'This signup is live. The page below shows what visitors see.';
 
   return (
-    <div className="container-tight flex flex-col gap-7">
-      {isPreview ? (
+    <>
+      {!showStateBanner ? null : isPreview ? (
         <Banner kind="preview" title="Preview" body={previewCopy} />
       ) : effectiveStatus === 'closed' ? (
         <Banner
@@ -261,7 +265,14 @@ export default function SignupView({
           </section>
         ))}
       </div>
+    </>
+  );
+}
 
+export default function SignupView(props: SignupViewProps) {
+  return (
+    <div className="container-tight flex flex-col gap-7">
+      <SignupViewBody {...props} />
       <footer className="text-ink-soft pt-4 text-center text-xs">
         Ad-free · Run by OpenSignup · <Link className="underline" href="/">About</Link>
       </footer>
