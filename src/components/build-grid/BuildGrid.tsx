@@ -11,6 +11,7 @@ import { GridHeader } from './GridHeader';
 import { GridBody } from './GridBody';
 import { SideRail } from './SideRail';
 import { FieldEditor } from './FieldEditor';
+import { MobileBuildGrid } from './mobile/MobileBuildGrid';
 import type { SlotFieldDefinition } from '@/schemas/slot-fields';
 import type { SignupSettings, SignupStatus } from '@/schemas/signups';
 
@@ -85,8 +86,27 @@ export function BuildGrid({ signupId, signupMeta, initialFields, initialSlots, i
 
   return (
     <>
+      {/* Mobile tree — <md only */}
+      <div className="md:hidden">
+        <MobileBuildGrid
+          signupMeta={signupMeta}
+          fields={state.fields}
+          rows={state.rows}
+          groupByFieldRef={state.groupByFieldRef}
+          saveStatus={state.saveStatus}
+          onEditField={(field) => setEditingField(field)}
+          onAddField={() => setShowFieldEditorCreate(true)}
+          onGroupByChange={(ref) => { void setGroupBy(ref); }}
+          onEditCell={(rowId, fieldRef, value) => editCell(rowId, fieldRef, value)}
+          onSetCapacity={(rowId, cap) => { void setCapacity(rowId, cap); }}
+          onDeleteRow={(rowId) => { void deleteRow(rowId); }}
+          onAddRow={() => { void addRow(); }}
+        />
+      </div>
+
+      {/* Desktop tree — ≥md only */}
       <div
-        className={`grid gap-5 items-start ${state.showPreview ? 'grid-cols-[minmax(720px,1fr)_minmax(320px,360px)]' : 'grid-cols-[1fr]'}`}
+        className={`hidden md:grid gap-5 items-start ${state.showPreview ? 'md:grid-cols-[minmax(720px,1fr)_minmax(320px,360px)]' : 'md:grid-cols-[1fr]'}`}
       >
         {/* Build Grid panel */}
         <div className="border border-surface-sunk rounded-2xl bg-white overflow-hidden min-w-0">
