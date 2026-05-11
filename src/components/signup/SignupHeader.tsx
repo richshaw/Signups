@@ -3,6 +3,7 @@ import { Download, Eye } from 'lucide-react';
 import { PublicLinkChip } from '@/components/PublicLinkChip';
 import { StatusPill } from '@/components/status-pill';
 import { AsyncSubmitButton } from '@/components/ui/async-submit-button';
+import { MobileSignupHeader } from './MobileSignupHeader';
 
 interface SignupHeaderProps {
   signupId: string;
@@ -27,7 +28,19 @@ export function SignupHeader({
   const exportHref = `/api/signups/${signupId}/export.csv`;
 
   return (
-    <header className="space-y-3">
+    <>
+      <div className="md:hidden">
+        <MobileSignupHeader
+          signupId={signupId}
+          title={title}
+          description={description}
+          status={status}
+          publicUrl={publicUrl}
+          publishAction={publishAction}
+          closeAction={closeAction}
+        />
+      </div>
+      <header className="hidden space-y-3 md:block">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
@@ -80,6 +93,7 @@ export function SignupHeader({
       {description ? (
         <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">{description}</p>
       ) : null}
-    </header>
+      </header>
+    </>
   );
 }
