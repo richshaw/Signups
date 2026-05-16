@@ -13,6 +13,7 @@ import { buildMessages, MagicComposeDraftSchema } from '@/lib/magic-compose/prom
 import { hasDropped, magicComposeToTemplate } from '@/lib/magic-compose/to-template';
 import { createSignup } from '@/services/signups';
 import { mapMagicComposeError } from './errors';
+import { buildDraftPreview } from './preview';
 
 const PromptBodySchema = z.object({
   prompt: z.string().min(1).max(4000),
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
           promptLength: userPrompt.length,
           groupByFieldRefs,
         },
+        draft: buildDraftPreview(draft.data, template),
       },
       {
         links: {

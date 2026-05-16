@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { DraftPreview } from '@/app/api/signups/magic-compose/preview';
 import { STARTER_PROMPTS } from '@/lib/magic-compose/templates';
 import { Compose } from './Compose';
 import { Drafting } from './Drafting';
@@ -22,6 +23,7 @@ export function MagicComposeRoot() {
   const [prompt, setPrompt] = useState(STARTER_PROMPTS[0]?.body ?? '');
   const [animationDone, setAnimationDone] = useState(false);
   const [response, setResponse] = useState<DraftResponse | null>(null);
+  const [draft, setDraft] = useState<DraftPreview | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Both-states-resolved redirect.
@@ -37,6 +39,7 @@ export function MagicComposeRoot() {
 
     setAnimationDone(false);
     setResponse(null);
+    setDraft(null);
     setState({ kind: 'drafting' });
 
     const controller = new AbortController();
@@ -52,7 +55,7 @@ export function MagicComposeRoot() {
       if (controller.signal.aborted) return;
       const body = (await res.json().catch(() => null)) as
         | {
-            data?: { id: string; slug: string };
+            data?: { id: string; slug: string; draft: DraftPreview };
             error?: { message: string; suggestion?: string };
           }
         | null;
@@ -65,6 +68,7 @@ export function MagicComposeRoot() {
         return;
       }
       setResponse({ id: body.data.id, slug: body.data.slug });
+      setDraft(body.data.draft);
     } catch (e) {
       if (controller.signal.aborted) return; // cancel path handled separately
       const message = e instanceof Error ? e.message : 'Network error';
@@ -77,13 +81,21 @@ export function MagicComposeRoot() {
     abortRef.current = null;
     setAnimationDone(false);
     setResponse(null);
+    setDraft(null);
     setState({ kind: 'idle' });
   }, []);
 
   const onAnimationDone = useCallback(() => setAnimationDone(true), []);
 
   if (state.kind === 'drafting') {
-    return <Drafting prompt={prompt} onCancel={onCancel} onAnimationDone={onAnimationDone} />;
+    return (
+      <Drafting
+        prompt={prompt}
+        draft={draft}
+        onCancel={onCancel}
+        onAnimationDone={onAnimationDone}
+      />
+    );
   }
 
   return (
