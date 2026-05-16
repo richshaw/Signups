@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { DraftPreview } from '@/app/api/signups/magic-compose/preview';
 import { useTypewriter } from '@/hooks/useTypewriter';
 
 export interface DraftStep {
@@ -18,97 +19,128 @@ export const DRAFT_STEPS: DraftStep[] = [
   { id: 'check', label: 'Tidying up', duration: 600 },
 ];
 
-export const DRAFT_DURATION_MS =
-  DRAFT_STEPS.reduce((a, s) => a + s.duration, 0) + 300;
+export const VISIBLE_FIELD_CAP = 4;
+export const VISIBLE_SLOT_CAP = 10;
 
-const SAMPLE_TITLE = 'Snack duty, U9 Eagles, Spring season';
-const SAMPLE_BLURB =
-  'Bring snacks and drinks for the team after each Saturday game. Two families per game. No nuts please.';
-const SAMPLE_FIELDS = ['Game', 'Date', 'Opponent', 'Item'];
-const SAMPLE_SLOTS = 6;
+function fieldsStepDuration(n: number): number {
+  return Math.min(1500, Math.max(600, Math.min(n, VISIBLE_FIELD_CAP) * 220));
+}
+
+function slotsStepDuration(n: number): number {
+  return Math.min(1800, Math.max(600, Math.min(n, VISIBLE_SLOT_CAP) * 180));
+}
+
+function clampDuration(text: string, min: number, max: number): number {
+  return Math.min(max, Math.max(min, text.length * 14));
+}
+
+function formatPreviewValue(raw: unknown): string {
+  if (raw == null || raw === '') return '—';
+  return String(raw);
+}
 
 export function Drafting({
   prompt,
+  draft,
   onCancel,
   onAnimationDone,
 }: {
   prompt: string;
+  draft: DraftPreview | null;
   onCancel: () => void;
   onAnimationDone: () => void;
 }) {
   const [stepIdx, setStepIdx] = useState(0);
 
   useEffect(() => {
+    if (!draft) return;
+    const steps = DRAFT_STEPS.map((s) => {
+      if (s.id === 'fields') return { ...s, duration: fieldsStepDuration(draft.fields.length) };
+      if (s.id === 'slots') return { ...s, duration: slotsStepDuration(draft.slots.length) };
+      return s;
+    });
     let i = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const next = () => {
       setStepIdx(i);
-      if (i >= DRAFT_STEPS.length) {
+      if (i >= steps.length) {
         onAnimationDone();
         return;
       }
       timer = setTimeout(() => {
         i += 1;
         next();
-      }, DRAFT_STEPS[i]!.duration);
+      }, steps[i]!.duration);
     };
     next();
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [onAnimationDone]);
+  }, [draft, onAnimationDone]);
 
   const reached = (id: string) =>
     DRAFT_STEPS.findIndex((s) => s.id === id) <= stepIdx;
   const passed = (id: string) =>
     DRAFT_STEPS.findIndex((s) => s.id === id) < stepIdx;
 
-  const titleDuration = useMemo(
-    () => (DRAFT_STEPS.find((s) => s.id === 'title')?.duration ?? 700) - 100,
-    [],
+  const titleText = useTypewriter(
+    draft?.title ?? '',
+    DRAFT_STEPS[stepIdx]?.id === 'title',
+    clampDuration(draft?.title ?? '', 400, 1200),
   );
-  const descDuration = useMemo(
-    () => (DRAFT_STEPS.find((s) => s.id === 'desc')?.duration ?? 900) - 100,
-    [],
+  const descText = useTypewriter(
+    draft?.description ?? '',
+    DRAFT_STEPS[stepIdx]?.id === 'desc',
+    clampDuration(draft?.description ?? '', 400, 1200),
   );
-  const titleText = useTypewriter(SAMPLE_TITLE, DRAFT_STEPS[stepIdx]?.id === 'title', titleDuration);
-  const descText = useTypewriter(SAMPLE_BLURB, DRAFT_STEPS[stepIdx]?.id === 'desc', descDuration);
+
+  const fields = draft?.fields ?? [];
+  const slots = draft?.slots ?? [];
+  const visibleFields = fields.slice(0, VISIBLE_FIELD_CAP);
+  const overflowFields = Math.max(0, fields.length - visibleFields.length);
+  const visibleSlots = slots.slice(0, VISIBLE_SLOT_CAP);
+  const overflowSlots = Math.max(0, slots.length - visibleSlots.length);
 
   const [fieldsRevealed, setFieldsRevealed] = useState(0);
   useEffect(() => {
     if (DRAFT_STEPS[stepIdx]?.id !== 'fields') {
-      setFieldsRevealed(passed('fields') ? SAMPLE_FIELDS.length : 0);
+      setFieldsRevealed(passed('fields') ? visibleFields.length : 0);
       return;
     }
+    if (visibleFields.length === 0) return;
     setFieldsRevealed(0);
-    const dur = DRAFT_STEPS.find((s) => s.id === 'fields')!.duration;
-    const step = dur / SAMPLE_FIELDS.length;
-    const ts = SAMPLE_FIELDS.map((_, i) =>
+    const dur = fieldsStepDuration(fields.length);
+    const step = dur / visibleFields.length;
+    const ts = visibleFields.map((_, i) =>
       setTimeout(() => setFieldsRevealed((n) => Math.max(n, i + 1)), step * (i + 0.2)),
     );
     return () => ts.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx]);
+  }, [stepIdx, visibleFields.length, fields.length]);
 
   const [slotsCount, setSlotsCount] = useState(0);
   useEffect(() => {
     if (DRAFT_STEPS[stepIdx]?.id !== 'slots') {
-      setSlotsCount(passed('slots') ? SAMPLE_SLOTS : 0);
+      setSlotsCount(passed('slots') ? visibleSlots.length : 0);
       return;
     }
+    if (visibleSlots.length === 0) return;
     setSlotsCount(0);
-    const dur = DRAFT_STEPS.find((s) => s.id === 'slots')!.duration;
-    const step = dur / SAMPLE_SLOTS;
-    const ts = Array.from({ length: SAMPLE_SLOTS }).map((_, i) =>
+    const dur = slotsStepDuration(slots.length);
+    const step = dur / visibleSlots.length;
+    const ts = visibleSlots.map((_, i) =>
       setTimeout(() => setSlotsCount((n) => Math.max(n, i + 1)), step * (i + 0.2)),
     );
     return () => ts.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepIdx]);
+  }, [stepIdx, visibleSlots.length, slots.length]);
 
   const titleDone = passed('title');
   const descShown = reached('desc');
   const descDone = passed('desc');
+
+  const slotCols = Math.max(1, visibleFields.length);
+  const gridTemplateColumns = `38px repeat(${slotCols}, minmax(0, 1fr)) 50px`;
 
   return (
     <div className="mx-auto mt-10 grid max-w-[1080px] grid-cols-1 items-start gap-7 md:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
@@ -117,7 +149,7 @@ export function Drafting({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Drafting your signup</h1>
           <p className="text-ink-muted mt-1.5 text-sm leading-relaxed">
-            About six seconds. You&apos;ll be able to edit anything once it&apos;s ready.
+            You&apos;ll be able to edit anything once it&apos;s ready.
           </p>
         </div>
 
@@ -172,10 +204,10 @@ export function Drafting({
           </blockquote>
 
           <DraftField label="Title">
-            {reached('title') ? (
+            {reached('title') && titleText ? (
               <div className="text-[22px] font-semibold leading-tight tracking-tight">
-                {titleText || <Skeleton width="60%" height={22} />}
-                {!titleDone && titleText && <Caret />}
+                {titleText}
+                {!titleDone && <Caret />}
               </div>
             ) : (
               <Skeleton width="60%" height={22} />
@@ -183,10 +215,10 @@ export function Drafting({
           </DraftField>
 
           <DraftField label="Description">
-            {descShown ? (
+            {descShown && descText ? (
               <p className="text-ink text-[15px] leading-relaxed">
-                {descText || <Skeleton width="100%" height={14} />}
-                {!descDone && descText && <Caret />}
+                {descText}
+                {!descDone && <Caret />}
               </p>
             ) : (
               <div className="flex flex-col gap-1.5">
@@ -198,61 +230,88 @@ export function Drafting({
 
           <DraftField
             label="Columns"
-            meta={fieldsRevealed > 0 ? `${fieldsRevealed} of ${SAMPLE_FIELDS.length}` : undefined}
+            meta={fieldsRevealed > 0 ? `${fieldsRevealed} of ${fields.length}` : undefined}
           >
             <div className="flex flex-wrap gap-2">
-              {SAMPLE_FIELDS.map((name, i) => {
-                if (i >= fieldsRevealed) {
-                  return <Skeleton key={i} width={90 + i * 8} height={28} radius={999} />;
-                }
-                return (
-                  <span
-                    key={i}
-                    className="bg-brand/10 text-brand inline-flex items-center gap-1.5 rounded-full border border-brand/20 px-3 py-1.5 text-[13px] font-medium"
-                  >
-                    {name}
-                  </span>
-                );
-              })}
+              {visibleFields.length === 0
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} width={90 + i * 8} height={28} radius={999} />
+                  ))
+                : visibleFields.map((f, i) =>
+                    i < fieldsRevealed ? (
+                      <span
+                        key={f.ref}
+                        className="bg-brand/10 text-brand border-brand/20 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] font-medium"
+                      >
+                        {f.label}
+                      </span>
+                    ) : (
+                      <Skeleton key={f.ref} width={90 + i * 8} height={28} radius={999} />
+                    ),
+                  )}
+              {fieldsRevealed === visibleFields.length && overflowFields > 0 && (
+                <span className="text-ink-muted inline-flex items-center px-3 py-1.5 text-[13px]">
+                  +{overflowFields} more
+                </span>
+              )}
             </div>
           </DraftField>
 
           <DraftField
             label="Slots"
-            meta={slotsCount > 0 ? `${slotsCount} of ${SAMPLE_SLOTS}` : undefined}
+            meta={slotsCount > 0 ? `${slotsCount} of ${slots.length}` : undefined}
           >
             <ul className="border-surface-sunk bg-surface-raised overflow-hidden rounded-xl border">
-              {Array.from({ length: SAMPLE_SLOTS }).map((_, i) => {
-                const shown = i < slotsCount;
-                return (
-                  <li
-                    key={i}
-                    className={`border-surface-sunk grid min-h-[44px] items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0 ${
-                      shown ? 'bg-white' : ''
-                    }`}
-                    style={{ gridTemplateColumns: '38px 90px 110px 1fr 50px' }}
-                  >
-                    <span className="text-ink-soft font-mono text-xs">{i + 1}</span>
-                    {shown ? (
-                      <>
-                        <span className="text-[13px] font-medium">Game {i + 1}</span>
-                        <span className="text-ink-muted text-[13px]">Sat</span>
-                        <span className="text-[13px]">Snack + drinks</span>
-                        <span className="text-ink-muted justify-self-end font-mono text-xs">
-                          0/2
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Skeleton width="80%" height={10} />
-                        <Skeleton width="80%" height={10} />
-                        <Skeleton width="60%" height={10} />
-                        <Skeleton width={30} height={10} className="justify-self-end" />
-                      </>
-                    )}
-                  </li>
-                );
-              })}
+              {visibleSlots.length === 0
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <li
+                      key={i}
+                      className="border-surface-sunk grid min-h-[44px] items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0"
+                      style={{ gridTemplateColumns: '38px 1fr 50px' }}
+                    >
+                      <Skeleton width={16} height={10} />
+                      <Skeleton width="80%" height={10} />
+                      <Skeleton width={30} height={10} className="justify-self-end" />
+                    </li>
+                  ))
+                : visibleSlots.map((s, i) => {
+                    const shown = i < slotsCount;
+                    return (
+                      <li
+                        key={i}
+                        className={`border-surface-sunk grid min-h-[44px] items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0 ${
+                          shown ? 'bg-white' : ''
+                        }`}
+                        style={{ gridTemplateColumns }}
+                      >
+                        <span className="text-ink-soft font-mono text-xs">{i + 1}</span>
+                        {shown ? (
+                          <>
+                            {visibleFields.map((f) => (
+                              <span key={f.ref} className="truncate text-[13px]">
+                                {formatPreviewValue(s.values[f.ref])}
+                              </span>
+                            ))}
+                            <span className="text-ink-muted justify-self-end font-mono text-xs">
+                              0/{s.capacity ?? '∞'}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {visibleFields.map((f) => (
+                              <Skeleton key={f.ref} width="80%" height={10} />
+                            ))}
+                            <Skeleton width={30} height={10} className="justify-self-end" />
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+              {slotsCount === visibleSlots.length && overflowSlots > 0 && (
+                <li className="text-ink-muted px-3.5 py-2 text-center text-[13px]">
+                  +{overflowSlots} more
+                </li>
+              )}
             </ul>
           </DraftField>
         </div>
