@@ -633,6 +633,21 @@ async function runOneCase(c: EvalCase): Promise<CaseRun> {
   if (isRefusal(parsed.data)) {
     const refusalReason = parsed.data.refusalReason;
     const checks: CheckResult[] = [];
+    const expectedRefusal = Object.keys(c.expect).some((k) => {
+      const nk = normalizeKey(k);
+      return (
+        nk === 'refusalReason_must_be_present' ||
+        nk === 'refusalReason_must_mention_any'
+      );
+    });
+    if (!expectedRefusal) {
+      checks.push(
+        fail(
+          'unexpected_refusal',
+          `model refused on a happy-path case: "${refusalReason.slice(0, 120)}"`,
+        ),
+      );
+    }
     for (const [k, v] of Object.entries(c.expect)) {
       checks.push(runCheck(k, v, null, res.value, refusalReason));
     }
@@ -758,7 +773,9 @@ async function main() {
   }
 
   const anyFail = runs.some(
-    (r) => r.status !== 'skipped' && r.checks.some((c) => c.outcome === 'fail'),
+    (r) =>
+      r.status === 'llm_failed' ||
+      (r.status !== 'skipped' && r.checks.some((c) => c.outcome === 'fail')),
   );
   process.exit(anyFail ? 1 : 0);
 }
