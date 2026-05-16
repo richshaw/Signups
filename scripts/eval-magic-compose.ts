@@ -313,11 +313,16 @@ function runCheck(
     }
     case 'every_slot.values_keys_must_match_declared_field_refs': {
       if (expected !== true) return skip(rawKey, 'expected true');
-      const refs = new Set(draft.fields.map((f) => f.ref));
+      const refs = draft.fields.map((f) => f.ref);
+      const refSet = new Set(refs);
       for (let i = 0; i < draft.slots.length; i++) {
         const slot = draft.slots[i]!;
         for (const k of Object.keys(slot.values)) {
-          if (!refs.has(k)) return fail(rawKey, `slot[${i}] has unknown key "${k}"`);
+          if (!refSet.has(k)) return fail(rawKey, `slot[${i}] has unknown key "${k}"`);
+        }
+        const missing = refs.filter((r) => !(r in slot.values));
+        if (missing.length > 0) {
+          return fail(rawKey, `slot[${i}] missing field refs: ${missing.join(', ')}`);
         }
       }
       return pass(rawKey);
@@ -350,14 +355,14 @@ function runCheck(
         : fail(rawKey, `dates set ${JSON.stringify(got)} ≠ ${JSON.stringify(want)}`);
     }
 
-    case 'slot_values_must_cover_any': {
+    case 'slot_values_must_cover_all': {
       const a = arr(expected);
       if (!a) return skip(rawKey, 'expected string[]');
       const hay = slotValuesText(draft);
       const missing = a.filter((s) => !looseIncludes(hay, s));
       return missing.length === 0
         ? pass(rawKey)
-        : fail(rawKey, `slot values cover none of: ${missing.join(', ')}`);
+        : fail(rawKey, `slot values missing: ${missing.join(', ')}`);
     }
     case 'slot_values_or_description_must_mention_any': {
       const a = arr(expected);
@@ -434,7 +439,18 @@ function runCheck(
       const a = arr(expected);
       if (!a) return skip(rawKey, 'expected string[]');
       const s = JSON.stringify(rawOutput);
-      const hits = a.filter((p) => new RegExp(p).test(s));
+      const hits: string[] = [];
+      const invalid: string[] = [];
+      for (const p of a) {
+        try {
+          if (new RegExp(p).test(s)) hits.push(p);
+        } catch {
+          invalid.push(p);
+        }
+      }
+      if (invalid.length > 0) {
+        return fail(rawKey, `invalid regex pattern(s): ${invalid.join(', ')}`);
+      }
       return hits.length === 0
         ? pass(rawKey)
         : fail(rawKey, `output matched: ${hits.join(', ')}`);

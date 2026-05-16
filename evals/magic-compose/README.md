@@ -1,11 +1,12 @@
-# Magic Compose templates and evals
+# Magic Compose evals
 
-Starter prompts and developer evals for OpenSignup's Magic Compose feature (natural-language to signup draft).
+Developer evals for OpenSignup's Magic Compose feature (natural-language to signup draft).
 
 ## Files
 
-- `magic-compose-templates.json` — 3 user-facing starter prompts (School, Sports, Volunteering) shipped in the UI as click-to-try chips. Also reused as smoke evals.
-- `magic-compose-dev-evals.json` — 23-case developer eval suite covering each `fieldType`, cross-product/groupBy correctness, edge cases, multilingual input, hostile prompts, and the server invariants that hold regardless of model output.
+- `dev-evals.json` — 23-case developer eval suite covering each `fieldType`, cross-product/groupBy correctness, edge cases, multilingual input, hostile prompts, and the server invariants that hold regardless of model output.
+
+The user-facing starter prompts (School, Sports, Volunteering) shipped in the UI as click-to-try chips live in the Magic Compose UI code, not as a JSON file in this directory.
 
 ## Implemented draft shape
 
@@ -45,7 +46,7 @@ Limits: max 20 fields, max 200 slots.
 ## Core principles (load-bearing)
 
 - **Slots are the atom, not questions.** The generator drafts the *things participants sign up for*, not free-form questions. No `essay`, `favourite-colour`, `goals` text fields.
-- **No PII fields.** Never `ssn`, `dob`, `home-address`, `driver-license`, `bank-account`, etc., even on request. The prompt-level refusal pattern produces a placeholder draft with title "Cannot generate this signup".
+- **No PII fields.** Never `ssn`, `dob`, `home-address`, `driver-license`, `bank-account`, etc., even on request. The prompt-level refusal pattern returns a structured refusal payload `{ refusalReason: string }` — no title, fields, or slots — which the server surfaces to the user without persisting anything.
 - **Don't invent specifics.** No dates, locations, capacities, or opponents the prompt doesn't mention.
 - **Cross-product slots.** A grid like "3 classes × 12 times" is 36 slots, each with a non-empty `values` object — not 3+12 slots and not 1 slot.
 - **groupBy is the scan axis.** With a small named dimension (class, station, teacher), set `groupBy` to that field's ref. For a pure date list, set `groupBy: null` (the converter also falls back to the sole enum field if the model omits it).
@@ -70,18 +71,25 @@ Each case has a `runner`:
 
 Expectations are structural, not literal-text:
 
-- `*.must_match_any` / `*.must_cover_any` — case-insensitive substring; at least one match passes.
+- `*.must_match_any` / `*.must_mention_any` — case-insensitive substring; at least one match passes.
+- `*.must_cover_all` — case-insensitive substring; every expected item must be present.
 - `*.must_not_match_any` — case-insensitive substring; any match fails.
 - `slots.count_range: [min, max]` — inclusive integer bounds.
 - `must_express_target_via_one_of` — accepts either `capacity` or a dedicated number field. The generator gets to choose; the assertion accepts both.
 
-The three user-facing templates in `magic-compose-templates.json` should be run as evals on every release — they double as smoke tests for the most common organizer use cases.
-
 ## Running
 
-Recommended: an opt-in script `scripts/eval-magic-compose.ts` gated on `LLM_BASE_URL` being set. It calls our real `buildMessages()` against the configured provider, parses with `MagicComposeDraftSchema`, and reports per-case pass/fail with diffs.
+Opt-in script `scripts/eval-magic-compose.ts` gated on `LLM_BASE_URL` + `LLM_MODEL` being set. It calls our real `buildMessages()` against the configured provider, parses with `MagicComposeDraftSchema`, and reports per-case pass/fail with diffs.
 
-Per-run JSON snapshots can be checked into `evals/` so a prompt regression shows up as a diff in PR review. Don't gate CI on `runner: llm` cases — model drift will cause flakes.
+```bash
+pnpm eval:magic-compose                       # all llm cases
+pnpm eval:magic-compose --case=ev_021         # single case
+pnpm eval:magic-compose --tag=cross_product   # by tag
+pnpm eval:magic-compose --list                # list cases without running
+pnpm eval:magic-compose --no-snapshot         # skip writing snapshot
+```
+
+Per-run JSON snapshots are written to `evals/magic-compose/snapshots/` for local inspection. The directory is gitignored — snapshots are local-only dev artifacts, not committed. Don't gate CI on `runner: llm` cases — model drift will cause flakes.
 
 ## How to extend
 

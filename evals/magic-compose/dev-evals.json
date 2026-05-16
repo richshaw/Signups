@@ -59,7 +59,7 @@
         "fields.count_range": [1, 3],
         "fields.field_types_subset_of": ["text", "number", "enum"],
         "slots.count": 5,
-        "slot_values_must_cover_any": ["tissue", "hand sanitizer", "glue", "marker", "ziplock"],
+        "slot_values_must_cover_all": ["tissue", "hand sanitizer", "glue", "marker", "ziplock"],
         "groupBy_should_be_null": true
       }
     },
@@ -299,7 +299,7 @@
       "expect": {
         "slots.count_range": [3, 6],
         "fields.must_not_include_field_type": "date",
-        "slot_values_must_cover_any": ["picture", "early-reader", "chapter", "middle-grade", "novel"],
+        "slot_values_must_cover_all": ["picture", "early-reader", "chapter", "middle-grade", "novel"],
         "must_not_invent": ["specific drop-off dates", "specific deadlines"]
       }
     },
