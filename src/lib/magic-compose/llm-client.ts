@@ -1,7 +1,7 @@
 import { getEnv } from '@/lib/env';
 import { log } from '@/lib/log';
 import { err, ok, type Result } from '@/lib/result';
-import { RESPONSE_JSON_SCHEMA, type ChatMessage } from './prompt';
+import type { ChatMessage } from './prompt';
 
 export type MagicComposeErrorCode =
   | 'not_configured'
@@ -27,8 +27,6 @@ export interface LlmClient {
   ): Promise<Result<unknown, MagicComposeError>>;
 }
 
-const DEFAULT_TIMEOUT_MS = 60_000;
-
 export function defaultLlmClient(): LlmClient {
   return {
     async generateDraft(messages, signal) {
@@ -42,7 +40,7 @@ export function defaultLlmClient(): LlmClient {
 
       const url = resolveChatCompletionsUrl(env.LLM_BASE_URL);
       const timeoutController = new AbortController();
-      const timeout = setTimeout(() => timeoutController.abort(), DEFAULT_TIMEOUT_MS);
+      const timeout = setTimeout(() => timeoutController.abort(), env.LLM_TIMEOUT_MS);
 
       const combinedSignal = anySignal([signal, timeoutController.signal]);
 
@@ -56,8 +54,16 @@ export function defaultLlmClient(): LlmClient {
           body: JSON.stringify({
             model: env.LLM_MODEL,
             messages,
-            response_format: { type: 'json_schema', json_schema: RESPONSE_JSON_SCHEMA },
-            temperature: 0.2,
+            // json_object mode (not json_schema strict). Gemini's strict
+            // structured outputs let it stall on the permissive `values`
+            // object and pad with whitespace until token limit. The system
+            // prompt with worked examples + Zod validation on the server
+            // is enough; we don't need provider-side schema enforcement.
+            response_format: { type: 'json_object' },
+            temperature: 0,
+            // Bound runaway generation. 36 slots × ~60 tokens ≈ 2.2k; cap
+            // at 16k for safety on big drafts.
+            max_tokens: 16_000,
           }),
           signal: combinedSignal,
         });
@@ -87,6 +93,15 @@ export function defaultLlmClient(): LlmClient {
           rawText = await res.text();
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
+          if (timeoutController.signal.aborted) {
+            return err({
+              code: 'timeout',
+              message: `LLM request timed out after ${env.LLM_TIMEOUT_MS}ms while reading body`,
+            });
+          }
+          if (signal?.aborted) {
+            return err({ code: 'aborted', message: 'request cancelled by caller' });
+          }
           return err({ code: 'upstream', message: `failed to read response body: ${msg}` });
         }
         let body: unknown;

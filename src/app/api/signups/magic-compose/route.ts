@@ -39,6 +39,10 @@ function mapMagicComposeError(e: MagicComposeError): {
     case 'aborted':
       return { code: 'invalid_input', message: 'request cancelled' };
     case 'timeout':
+      return {
+        code: 'internal',
+        message: 'AI drafting timed out. Try a simpler prompt or raise LLM_TIMEOUT_MS.',
+      };
     case 'upstream':
     case 'invalid_json':
     case 'schema_mismatch':
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const template = magicComposeToTemplate(draft.data);
+    const { template, groupByFieldRefs } = magicComposeToTemplate(draft.data);
 
     const created = await createSignup(
       db,
@@ -115,6 +119,7 @@ export async function POST(req: NextRequest) {
         title: draft.data.title,
         description: draft.data.description,
         visibility: 'unlisted',
+        settings: groupByFieldRefs.length > 0 ? { groupByFieldRefs } : {},
       },
       { template },
     );
@@ -128,6 +133,7 @@ export async function POST(req: NextRequest) {
           fieldsAdded: template.fields.length,
           slotsAdded: template.slots.length,
           promptLength: userPrompt.length,
+          groupByFieldRefs,
         },
       },
       {

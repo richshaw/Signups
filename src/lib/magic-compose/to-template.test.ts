@@ -4,6 +4,11 @@ import { magicComposeToTemplate } from './to-template';
 
 function parse(raw: unknown) {
   const r = MagicComposeDraftSchema.parse(raw);
+  return magicComposeToTemplate(r).template;
+}
+
+function parseFull(raw: unknown) {
+  const r = MagicComposeDraftSchema.parse(raw);
   return magicComposeToTemplate(r);
 }
 
@@ -106,5 +111,57 @@ describe('magicComposeToTemplate', () => {
       slots: [{ values: { a: 'hi' }, capacity: null }],
     });
     expect(t.slots[0]?.capacity).toBeNull();
+  });
+
+  describe('groupByFieldRefs', () => {
+    it('honours the model-provided groupBy when it matches a field', () => {
+      const r = parseFull({
+        title: 'PT conferences',
+        groupBy: 'class',
+        fields: [
+          { ref: 'class', label: 'Class', fieldType: 'enum', choices: ['Maple', 'Cedar'] },
+          { ref: 'time', label: 'Time', fieldType: 'time' },
+        ],
+        slots: [
+          { values: { class: 'Maple', time: '09:00' } },
+          { values: { class: 'Cedar', time: '09:00' } },
+        ],
+      });
+      expect(r.groupByFieldRefs).toEqual(['class']);
+    });
+
+    it('falls back to the single enum field when groupBy is missing', () => {
+      const r = parseFull({
+        title: 'PT conferences',
+        fields: [
+          { ref: 'class', label: 'Class', fieldType: 'enum', choices: ['Maple', 'Cedar'] },
+          { ref: 'time', label: 'Time', fieldType: 'time' },
+        ],
+        slots: [{ values: { class: 'Maple', time: '09:00' } }],
+      });
+      expect(r.groupByFieldRefs).toEqual(['class']);
+    });
+
+    it('does not group when there are multiple enum fields and no hint', () => {
+      const r = parseFull({
+        title: 'My signup',
+        fields: [
+          { ref: 'class', label: 'Class', fieldType: 'enum', choices: ['Maple'] },
+          { ref: 'station', label: 'Station', fieldType: 'enum', choices: ['A'] },
+        ],
+        slots: [{ values: { class: 'Maple', station: 'A' } }],
+      });
+      expect(r.groupByFieldRefs).toEqual([]);
+    });
+
+    it('ignores a groupBy ref that does not match any declared field', () => {
+      const r = parseFull({
+        title: 'My signup',
+        groupBy: 'nonexistent',
+        fields: [{ ref: 'a', label: 'A', fieldType: 'text' }],
+        slots: [{ values: { a: 'hi' } }],
+      });
+      expect(r.groupByFieldRefs).toEqual([]);
+    });
   });
 });

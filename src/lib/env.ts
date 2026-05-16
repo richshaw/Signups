@@ -27,6 +27,7 @@ const baseSchema = z.object({
   LLM_BASE_URL: z.string().url().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().max(600_000).default(180_000),
 });
 
 const conditional = baseSchema.superRefine((env, ctx) => {

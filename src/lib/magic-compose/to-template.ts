@@ -61,7 +61,13 @@ function coerceValue(
   }
 }
 
-export function magicComposeToTemplate(draft: MagicComposeDraft): SignupTemplate {
+export interface MagicComposeConversion {
+  template: SignupTemplate;
+  /** Field refs to visually group by in the participant view. Length 0 or 1. */
+  groupByFieldRefs: string[];
+}
+
+export function magicComposeToTemplate(draft: MagicComposeDraft): MagicComposeConversion {
   const seenRefs = new Set<string>();
   const fields: SlotFieldInput[] = [];
 
@@ -91,16 +97,29 @@ export function magicComposeToTemplate(draft: MagicComposeDraft): SignupTemplate
       const coerced = coerceValue(field.fieldType, raw, enumChoices);
       if (coerced !== undefined) values[ref] = coerced;
     }
-    return {
-      values,
-      capacity: s.capacity === undefined ? 1 : s.capacity,
-      sortOrder: i,
-    };
+    let capacity: number | null;
+    if (s.capacity === null) {
+      capacity = null;
+    } else if (s.capacity === undefined || s.capacity < 1) {
+      capacity = 1;
+    } else {
+      capacity = s.capacity;
+    }
+    return { values, capacity, sortOrder: i };
   });
 
-  return {
-    id: 'magic-compose',
-    fields,
-    slots,
-  };
+  const template: SignupTemplate = { id: 'magic-compose', fields, slots };
+
+  // Honour the model's groupBy if it points at a declared field. Otherwise
+  // fall back: if exactly one enum field exists, group by it (covers the
+  // common cross-product case even when the model forgets to set groupBy).
+  let groupByFieldRefs: string[] = [];
+  if (draft.groupBy && fieldByRef.has(draft.groupBy)) {
+    groupByFieldRefs = [draft.groupBy];
+  } else {
+    const enumFields = fields.filter((f) => f.fieldType === 'enum');
+    if (enumFields.length === 1) groupByFieldRefs = [enumFields[0]!.ref];
+  }
+
+  return { template, groupByFieldRefs };
 }

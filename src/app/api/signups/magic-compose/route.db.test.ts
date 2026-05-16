@@ -114,7 +114,7 @@ describe('magic-compose route chain (db)', () => {
     expect(llm.ok).toBe(true);
     if (!llm.ok) return;
     const draft = MagicComposeDraftSchema.parse(llm.value);
-    const template = magicComposeToTemplate(draft);
+    const { template } = magicComposeToTemplate(draft);
     expect(template.id).toBe('magic-compose');
     expect(template.fields).toHaveLength(2);
     expect(template.slots).toHaveLength(3);
@@ -164,7 +164,7 @@ describe('magic-compose route chain (db)', () => {
     const llm = await client.generateDraft([]);
     if (!llm.ok) throw new Error('stub should not error');
     const draft = MagicComposeDraftSchema.parse(llm.value);
-    const template = magicComposeToTemplate(draft);
+    const { template } = magicComposeToTemplate(draft);
     expect(template.slots[0]?.values).toEqual({ date: '2026-04-25' });
 
     const r = await createSignup(

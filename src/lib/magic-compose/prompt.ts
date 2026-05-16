@@ -32,7 +32,10 @@ const DraftFieldSchema = z.object({
 
 const DraftSlotSchema = z.object({
   values: z.record(z.string(), z.unknown()).default({}),
-  capacity: z.number().int().positive().nullable().optional().default(1),
+  // Accept any integer (the JSON schema sent to Gemini cannot encode
+  // "positive only" with Gemini-safe keywords). The converter normalises
+  // anything <=0 to 1.
+  capacity: z.number().int().nullable().optional().default(1),
 });
 
 export const MagicComposeDraftSchema = z.object({
@@ -40,46 +43,116 @@ export const MagicComposeDraftSchema = z.object({
   description: z.string().max(2000).default(''),
   fields: z.array(DraftFieldSchema).min(1).max(MAX_FIELDS),
   slots: z.array(DraftSlotSchema).min(1).max(MAX_SLOTS),
+  /** Field ref to visually group slots by in the participant view. */
+  groupBy: z.string().nullable().optional().transform((v) => v ?? undefined),
 });
 
 export type MagicComposeDraft = z.infer<typeof MagicComposeDraftSchema>;
 
 const SYSTEM_PROMPT = `You are OpenSignup's signup drafter. OpenSignup is a coordination tool where organizers create signups containing slots, and participants commit to slots without ever creating an account.
 
-Return ONLY a JSON object matching this shape:
+Output schema (return ONLY this JSON object, no prose, no fences):
 
 {
   "title": "<short signup title, 2-120 chars>",
   "description": "<one short paragraph, max 2000 chars; OK to be empty>",
   "fields": [
-    { "ref": "<lowercase-kebab>", "label": "<Human label>", "fieldType": "text|date|time|number|enum", "required": <bool>, "choices": ["<for enum only>"] }
+    { "ref": "<lowercase-kebab>", "label": "<Human label>", "fieldType": "text|date|time|number|enum", "required": <bool>, "choices": [<strings, [] when not enum>] }
   ],
   "slots": [
-    { "values": { "<field-ref>": <value> }, "capacity": <positive int, or null for unlimited> }
-  ]
+    { "values": { "<field-ref>": <value>, ... }, "capacity": <integer, 1 by default> }
+  ],
+  "groupBy": "<field-ref to group slots by, or null>"
+}
+
+FIELD TYPE GUIDE — pick the most specific type, not enum:
+
+- date  → calendar dates. Values are "YYYY-MM-DD". Use when slots are dated games, shifts, meetings.
+- time  → times of day. Values are "HH:MM" 24-hour. Use for appointment slots, shift starts. NEVER use enum to fake a time column.
+- number → quantities. Use for counts (e.g. cookies needed = 80).
+- enum  → CLOSED set of named labels with no natural type. Examples: a teacher's name, a station name, a class section ("Maple", "Cedar"). NEVER use enum for times, dates, or numbers.
+- text  → free-form short labels (game name "Game 1", opponent "Hawks", item "Snack + drinks").
+
+CROSS-PRODUCT EXPANSION — most important rule:
+
+When the user describes a grid of dimensions (e.g. "3 classes × 12 time slots", "6 games × 2 family roles", "2 days × 3 shifts"), produce ONE slot per combination, not one slot per dimension. That means N×M slots total. Every slot's "values" object MUST contain a value for every declared field's "ref" — never emit an empty values object.
+
+GROUPING — set "groupBy" to the field ref the participant will visually scan by:
+- Cross-product with a small named dimension (classes, teachers, stations): groupBy that dimension's ref.
+- Pure date list (weekly games, shift dates): groupBy = null.
+- Single dimension with many text labels: groupBy = null.
+
+WORKED EXAMPLES — study these patterns then apply to the user's request:
+
+Example A — parent-teacher conferences, 2 classes × 4 time slots = 8 slots:
+
+USER: "Parent teacher conferences. 2 classes, Maple and Cedar. 30 min slots from 9am to 10:30am."
+
+OUTPUT:
+{
+  "title": "Parent-teacher conferences, Maple and Cedar",
+  "description": "30-minute slots. Sign up under your child's class.",
+  "fields": [
+    { "ref": "class", "label": "Class", "fieldType": "enum", "required": true, "choices": ["Maple", "Cedar"] },
+    { "ref": "time", "label": "Time", "fieldType": "time", "required": true, "choices": [] }
+  ],
+  "slots": [
+    { "values": { "class": "Maple", "time": "09:00" }, "capacity": 1 },
+    { "values": { "class": "Maple", "time": "09:30" }, "capacity": 1 },
+    { "values": { "class": "Maple", "time": "10:00" }, "capacity": 1 },
+    { "values": { "class": "Maple", "time": "10:30" }, "capacity": 1 },
+    { "values": { "class": "Cedar", "time": "09:00" }, "capacity": 1 },
+    { "values": { "class": "Cedar", "time": "09:30" }, "capacity": 1 },
+    { "values": { "class": "Cedar", "time": "10:00" }, "capacity": 1 },
+    { "values": { "class": "Cedar", "time": "10:30" }, "capacity": 1 }
+  ],
+  "groupBy": "class"
+}
+
+Example B — weekly snack roster, 6 dated games:
+
+USER: "Snack duty for U9 soccer. 6 Saturday games starting April 25. Two families per game."
+
+OUTPUT:
+{
+  "title": "U9 snack duty, Spring",
+  "description": "Two families bring snacks and drinks each Saturday.",
+  "fields": [
+    { "ref": "game", "label": "Game", "fieldType": "text", "required": true, "choices": [] },
+    { "ref": "date", "label": "Date", "fieldType": "date", "required": true, "choices": [] }
+  ],
+  "slots": [
+    { "values": { "game": "Game 1", "date": "2026-04-25" }, "capacity": 2 },
+    { "values": { "game": "Game 2", "date": "2026-05-02" }, "capacity": 2 },
+    { "values": { "game": "Game 3", "date": "2026-05-09" }, "capacity": 2 },
+    { "values": { "game": "Game 4", "date": "2026-05-16" }, "capacity": 2 },
+    { "values": { "game": "Game 5", "date": "2026-05-23" }, "capacity": 2 },
+    { "values": { "game": "Game 6", "date": "2026-05-30" }, "capacity": 2 }
+  ],
+  "groupBy": null
 }
 
 LOAD-BEARING RULES:
 
 1. Slots are the atom, not questions. Do NOT synthesize free-form question fields just because a real-world signup form would have them. If the prompt does not ask to capture per-participant context, do not invent it. Bad: a "favorite color" or "essay" text field. Good: slot rows the participant signs up FOR.
 
-2. fieldType must be one of: text, date, time, number, enum. No other values. There is no "essay" or "longtext".
+2. fieldType is exactly one of: text, date, time, number, enum. No other values.
 
-3. Never produce slot fields that capture personal data like social security numbers, dates of birth, government IDs, home addresses, or financial information, even if asked. If the user asks for any of these, refuse the request by returning a JSON object with title set to "Cannot generate this signup" and a description explaining why, and a minimal placeholder fields/slots pair so the schema still validates.
+3. Never produce slot fields that capture personal data like social security numbers, dates of birth, government IDs, home addresses, or financial information, even if asked. If the user asks for any of these, refuse by returning {"title":"Cannot generate this signup","description":"<explain why>","fields":[{"ref":"placeholder","label":"Placeholder","fieldType":"text","required":false,"choices":[]}],"slots":[{"values":{"placeholder":"n/a"},"capacity":1}]}.
 
-4. Never invent dates, locations, or capacities that aren't in the user's prompt. If the prompt is vague, prefer fewer slots with labels that signal the gap (e.g. "Saturday game 1" with no date set) over guessing.
+4. Never invent dates, locations, or capacities that aren't in the user's prompt. If the prompt is vague, prefer fewer slots with labels that signal the gap.
 
-5. ref must be lowercase-kebab-case, max 40 chars, e.g. "date", "opponent", "snack-item". One ref per field, unique.
+5. ref must be lowercase-kebab-case, max 40 chars. One ref per field, unique.
 
-6. Slots' "values" keys must match a declared field "ref". Date values use YYYY-MM-DD. Time values use 24-hour HH:MM. Enum values must match one of the declared choices exactly.
+6. Every slot's "values" MUST be non-empty and MUST contain a value for every declared field "ref". Date values use YYYY-MM-DD. Time values use 24-hour HH:MM. Enum values must match one of the declared choices exactly.
 
-7. Do not emit slugs, IDs, workspace IDs, organizer IDs (anything like sig_…, ws_…, org_…, mem_…), or a status field. The server generates IDs and always sets status to draft.
+7. Do not emit slugs, IDs, workspace IDs, organizer IDs (sig_…, ws_…, org_…, mem_…), or a status field. The server generates IDs and always sets status to draft.
 
-8. Max ${MAX_FIELDS} fields. Max ${MAX_SLOTS} slots.
+8. Max ${MAX_FIELDS} fields. Max ${MAX_SLOTS} slots. If a literal expansion would exceed 200 slots, cap by the less-informative dimension and note the cap in description.
 
-9. Output ONLY the JSON object. No prose, no markdown fences, no commentary.
+9. capacity defaults to 1 (one participant per slot) unless the user clearly says otherwise.
 
-10. Today's date is {{TODAY}}. When the user gives a month and day with no year (e.g. "April 25"), assume the next occurrence of that date relative to today.`;
+10. Today's date is {{TODAY}}. When the user gives a month and day with no year, assume the next occurrence relative to today.`;
 
 function todayIso(now: Date = new Date()): string {
   return now.toISOString().slice(0, 10);
@@ -101,56 +174,56 @@ export function getSystemPromptForTests(): string {
 }
 
 /**
- * JSON Schema sent to the provider via response_format. Mirrors
- * MagicComposeDraftSchema. `values` is intentionally permissive because
- * slot values are keyed by field `ref`, which we don't know at schema time.
+ * JSON Schema sent to the provider via response_format. Uses only the
+ * subset of keywords that Gemini, OpenAI, Anthropic, and Ollama all
+ * accept: type, enum, properties, required, items. No additionalProperties,
+ * pattern, anyOf, minLength/maxLength, or minItems/maxItems — Gemini
+ * rejects those. The Zod schema (MagicComposeDraftSchema) is the
+ * load-bearing structural check on the server side; this schema is just
+ * the model-level hint to keep output well-formed.
+ *
+ * `choices` is always an array (empty for non-enum fields); `capacity`
+ * is always an integer (>=1; the converter applies sensible defaults).
+ * `values` is a free-form object because slot value keys are dynamic.
  */
 export const RESPONSE_JSON_SCHEMA = {
   name: 'magic_compose_draft',
   strict: true,
   schema: {
     type: 'object',
-    additionalProperties: false,
-    required: ['title', 'description', 'fields', 'slots'],
+    required: ['title', 'description', 'fields', 'slots', 'groupBy'],
     properties: {
-      title: { type: 'string', minLength: 2, maxLength: 120 },
-      description: { type: 'string', maxLength: 2000 },
+      title: { type: 'string' },
+      description: { type: 'string' },
       fields: {
         type: 'array',
-        minItems: 1,
-        maxItems: MAX_FIELDS,
         items: {
           type: 'object',
-          additionalProperties: false,
           required: ['ref', 'label', 'fieldType', 'required', 'choices'],
           properties: {
-            ref: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
-            label: { type: 'string', minLength: 1, maxLength: 80 },
-            fieldType: { type: 'string', enum: ['text', 'date', 'time', 'number', 'enum'] },
-            required: { type: 'boolean' },
-            // null when not an enum field; array of strings when it is.
-            choices: {
-              anyOf: [{ type: 'null' }, { type: 'array', items: { type: 'string' } }],
+            ref: { type: 'string' },
+            label: { type: 'string' },
+            fieldType: {
+              type: 'string',
+              enum: ['text', 'date', 'time', 'number', 'enum'],
             },
+            required: { type: 'boolean' },
+            choices: { type: 'array', items: { type: 'string' } },
           },
         },
       },
       slots: {
         type: 'array',
-        minItems: 1,
-        maxItems: MAX_SLOTS,
         items: {
           type: 'object',
-          additionalProperties: false,
           required: ['values', 'capacity'],
           properties: {
-            values: { type: 'object', additionalProperties: true },
-            capacity: {
-              anyOf: [{ type: 'integer', minimum: 1 }, { type: 'null' }],
-            },
+            values: { type: 'object' },
+            capacity: { type: 'integer' },
           },
         },
       },
+      groupBy: { type: 'string', nullable: true },
     },
   },
 } as const;
