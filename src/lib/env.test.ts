@@ -73,6 +73,7 @@ describe('parseEnv', () => {
     expect(env.LLM_MODEL).toBe('gpt-4o-mini');
     expect(env.LLM_API_KEY).toBeUndefined();
   });
+
 });
 
 describe('magicComposeEnabled', () => {

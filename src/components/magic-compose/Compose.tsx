@@ -39,10 +39,10 @@ export function Compose({
           New signup
         </span>
         <h1 className="text-4xl font-semibold leading-tight tracking-tight md:text-[44px]">
-          What are you coordinating?
+          What are you organizing?
         </h1>
-        <p className="text-ink-muted max-w-[620px] text-base leading-relaxed md:text-lg">
-          A sentence or two is plenty. We&apos;ll draft a title, blurb, and slots for you to edit.
+        <p className="text-ink-muted text-base leading-relaxed md:text-lg">
+          The more detail you share, the better the draft. We&apos;ll turn it into a title, blurb, and slots for you to edit.
         </p>
       </header>
 

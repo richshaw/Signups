@@ -28,6 +28,7 @@ pnpm db:migrate         # apply migrations via tsx src/db/migrate.ts
 pnpm db:push            # drizzle-kit push (dev-only; bypass migrations)
 pnpm db:studio
 pnpm email:dev          # react-email preview server on :3001
+pnpm eval:magic-compose # offline eval of Magic Compose drafts (needs LLM_* env)
 ```
 
 Run a single vitest file: `pnpm test src/lib/policy.test.ts`. Run a single test name: `pnpm test -t 'rejects over-capacity'`.
@@ -79,6 +80,16 @@ Helpers used by every service:
 
 pg-boss runs against the same Postgres (schema `pgboss`). The Next.js server **does not** run the worker — `pnpm worker` (`src/jobs/worker.ts`) is a separate process. Two queues: `reminderDispatch` (cron every 10 min, scans the 48h window) and `reminderSend` (per-commitment send with retries). On commit, schedule with `singletonKey: commitmentId` so swap/edit replaces the prior job.
 
+### Magic Compose (AI-drafted signups)
+
+Optional feature: organizers paste a description and get a draft signup. Provider-agnostic — any OpenAI-compatible Chat Completions endpoint works (OpenRouter, OpenAI, Ollama). Disabled when `LLM_BASE_URL` is unset, so the "no vendor lock-in" rule still holds.
+
+- `src/lib/magic-compose/llm-client.ts` — single fetch-based client. Sends `response_format: { type: 'json_object' }` (not strict `json_schema`); server-side Zod validation in `prompt.ts` is the source of truth for shape. Surfaces a closed set of error codes (`not_configured | rate_limited | upstream | invalid_json | schema_mismatch | timeout | aborted`).
+- `src/app/api/signups/magic-compose/route.ts` — POST endpoint; rate-limited per organizer, calls the LLM, then **persists** via `createSignup` and returns `{ id, slug, summary, warnings, draft }` plus build/self/public links. Errors are mapped through `mapMagicComposeError` (`./errors.ts`); structured refusals from the model surface as `invalid_input` with `details.reason: 'refusal'`.
+- `src/components/magic-compose/` — client UI; state machine drives loading/error/preview states.
+- Env: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TIMEOUT_MS` (default 180000 — structured outputs on large drafts can exceed 60s).
+- Offline eval harness: `pnpm eval:magic-compose` (see `scripts/eval-magic-compose.ts`).
+
 ### Routes
 
 - Organizer UI: `src/app/app/...` (requires session).
@@ -109,7 +120,7 @@ From `CONTRIBUTING.md` and the v1 plan:
 
 - `src/**/*.test.ts(x)` — unit, run by `pnpm test`.
 - `src/**/*.db.test.ts` — integration against real Postgres, run by `pnpm test:db` (sequential; needs `docker compose up -d` and migrations applied).
-- Playwright specs — `pnpm test:e2e`, includes axe-core a11y on `/s/[slug]`.
+- `tests/e2e/**` — Playwright (`testDir` in `playwright.config.ts`), run by `pnpm test:e2e`. `@axe-core/playwright` is installed; no axe specs exist yet (planned for `/s/[slug]`).
 
 ## Recurring mistakes to avoid
 
@@ -117,3 +128,4 @@ From `CONTRIBUTING.md` and the v1 plan:
 - **Public routes must handle every signup state.** `/s/[slug]` and any participant-facing route must render a real message for each of `draft`, `open`, `closed`, `archived`, and "not found". Never let a non-`open` state fall through to a generic 404.
 - **Reuse banners and state-message components.** Before adding a new banner / notice / empty-state, grep for an existing one (preview banner, closed banner, etc.) and either reuse it or extract a shared component. Tailwind makes drift cheap to introduce and expensive to spot.
 - **Verify before claiming done.** Before saying "tests pass" or proposing a commit, actually run `pnpm lint && pnpm typecheck && pnpm test` in the current turn and use that output as evidence. Past success doesn't count.
+- **No `getEnv()` in statically prerendered pages.** Any module reachable from a static App Router page (anything without `dynamic`, `revalidate = 0`, `cookies()`, etc.) runs during `next build`. The Fly build image has no server env, so `getEnv()` will throw on `DATABASE_URL`/`AUTH_SECRET`/etc. and abort prerender. For values needed on static pages, expose them as `NEXT_PUBLIC_*` and read `process.env` directly; for server-only values, force the page dynamic.
