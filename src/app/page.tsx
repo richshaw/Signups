@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { HomeExampleCard } from './_components/HomeExampleCard';
-import { getEnv } from '@/lib/env';
 
 const GITHUB_URL = 'https://github.com/richshaw/OpenSignup';
 
 export default function LandingPage() {
-  const demoUrl = getEnv().DEMO_URL;
+  const demoUrl = process.env.NEXT_PUBLIC_DEMO_URL;
 
   return (
     <div className="bg-surface text-ink flex min-h-[100svh] flex-col">
