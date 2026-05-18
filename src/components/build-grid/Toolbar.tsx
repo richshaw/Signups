@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Smartphone } from 'lucide-react';
 import { SaveStatus } from './SaveStatus';
+import { fieldTypeMeta } from './fieldTypes';
 import type { GridField, GridRow, SaveStatus as SaveStatusType } from './useGridState';
 
 type ToolbarProps = {
@@ -46,52 +47,89 @@ export function Toolbar({
   return (
     <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-surface-sunk bg-surface-raised">
       {/* Group by label */}
-      <span className="text-xs text-ink-soft">Group by</span>
+      <span className="text-xs text-ink-muted">Group by</span>
 
       {/* Group by pill */}
       <div ref={groupByRef} className="relative">
-        {activeField ? (
+        {activeField ? (() => {
+          const ActiveIcon = fieldTypeMeta(activeField.type).icon;
+          return (
+            <button
+              onClick={() => setGroupByOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={groupByOpen}
+              aria-label={`Group by ${activeField.name} — click to change`}
+              className="flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-1 bg-[rgb(31_111_235/0.10)] text-brand border-brand-soft max-w-[200px]"
+            >
+              <ActiveIcon size={11} className="shrink-0" />
+              <span className="truncate min-w-0">{activeField.name}</span>
+              <ChevronDown size={11} className="shrink-0" />
+            </button>
+          );
+        })() : (
           <button
             onClick={() => setGroupByOpen((o) => !o)}
-            className="flex items-center gap-1 text-xs font-medium border rounded-full px-2.5 py-1 bg-[rgb(31_111_235/0.10)] text-brand border-brand-soft"
-            aria-label={`Group by ${activeField.name} — click to change`}
-          >
-            {activeField.name}
-            <ChevronDown size={11} />
-          </button>
-        ) : (
-          <button
-            onClick={() => setGroupByOpen((o) => !o)}
-            className="flex items-center gap-1 text-xs font-medium border rounded-full px-2.5 py-1 bg-white text-ink-muted border-surface-sunk"
+            aria-haspopup="menu"
+            aria-expanded={groupByOpen}
+            className="flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-1 bg-white text-ink-muted border-surface-sunk max-w-[200px]"
           >
             None
-            <ChevronDown size={11} />
+            <ChevronDown size={11} className="shrink-0" />
           </button>
         )}
 
         {groupByOpen && (
-          <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-surface-sunk rounded-lg shadow-md py-1 min-w-[140px]">
+          <div
+            role="menu"
+            className="absolute top-full left-0 mt-1 z-50 bg-white border border-surface-sunk rounded-lg shadow-card p-1 min-w-[200px]"
+          >
             <button
+              role="menuitemradio"
+              aria-checked={!activeField}
               onClick={() => {
                 onGroupByChange(null);
                 setGroupByOpen(false);
               }}
-              className="w-full text-left px-3 py-1.5 text-xs text-ink-muted hover:bg-surface-raised"
+              className={[
+                'flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-xs',
+                !activeField
+                  ? 'bg-[rgb(31_111_235/0.10)] text-brand font-semibold'
+                  : 'text-ink font-medium hover:bg-surface-raised',
+              ].join(' ')}
             >
+              <span className="w-3 shrink-0" />
               None
             </button>
-            {groupableFields.map((f) => (
-              <button
-                key={f.ref}
-                onClick={() => {
-                  onGroupByChange(f.ref);
-                  setGroupByOpen(false);
-                }}
-                className="w-full text-left px-3 py-1.5 text-xs text-ink hover:bg-surface-raised"
-              >
-                {f.name}
-              </button>
-            ))}
+            {groupableFields.length === 0 ? (
+              <div className="px-2.5 py-2 text-[11px] text-ink-muted leading-snug">
+                Add a date or text field to group slots.
+              </div>
+            ) : (
+              groupableFields.map((f) => {
+                const Icon = fieldTypeMeta(f.type).icon;
+                const active = activeField?.ref === f.ref;
+                return (
+                  <button
+                    key={f.ref}
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => {
+                      onGroupByChange(f.ref);
+                      setGroupByOpen(false);
+                    }}
+                    className={[
+                      'flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md text-xs',
+                      active
+                        ? 'bg-[rgb(31_111_235/0.10)] text-brand font-semibold'
+                        : 'text-ink font-medium hover:bg-surface-raised',
+                    ].join(' ')}
+                  >
+                    <Icon size={12} className="shrink-0" />
+                    <span className="truncate min-w-0">{f.name}</span>
+                  </button>
+                );
+              })
+            )}
           </div>
         )}
       </div>
