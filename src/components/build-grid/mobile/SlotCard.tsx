@@ -96,7 +96,7 @@ function FieldRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={field.name}
-          className="min-w-0 flex-1 appearance-none border-none bg-transparent py-1 text-base text-ink outline-none"
+          className="min-w-0 flex-1 appearance-none border-none bg-transparent py-1 text-right text-base text-ink outline-none"
         >
           <option value="">—</option>
           {(field.config.fieldType === 'enum' ? field.config.choices : []).map((choice) => (
@@ -111,7 +111,7 @@ function FieldRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={field.name}
-          className="min-w-0 flex-1 border-none bg-transparent py-1 text-base text-ink outline-none"
+          className="min-w-0 flex-1 border-none bg-transparent py-1 text-right text-base text-ink outline-none"
         />
       )}
     </div>
@@ -155,7 +155,7 @@ function CapacityRow({
         }}
         aria-label="Capacity"
         placeholder="Unlimited"
-        className="min-w-0 flex-1 border-none bg-transparent py-1 text-base text-ink outline-none placeholder:text-ink-soft"
+        className="min-w-0 flex-1 border-none bg-transparent py-1 text-right text-base text-ink outline-none placeholder:text-ink-soft"
       />
     </div>
   );
