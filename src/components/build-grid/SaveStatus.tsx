@@ -23,8 +23,8 @@ export function SaveStatus({ status }: SaveStatusProps) {
 
   if (status === 'saved') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
-        <Check size={12} />
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success">
+        <Check size={11} />
         Saved
       </span>
     );

@@ -93,6 +93,7 @@ GROUPING — set "groupBy" to the field ref the participant will visually scan b
 - Cross-product with a small named dimension (classes, teachers, stations): groupBy that dimension's ref.
 - Pure date list (weekly games, shift dates): groupBy = null.
 - Single dimension with many text labels: groupBy = null.
+- If every slot would have a unique value for the candidate field (one row per value, no repeats), set groupBy = null — grouping only helps when participants can scan multiple options under one heading.
 
 WORKED EXAMPLES — study these patterns then apply to the user's request:
 
