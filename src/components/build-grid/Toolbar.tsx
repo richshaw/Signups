@@ -116,7 +116,7 @@ export function Toolbar({
 
       {/* Stats */}
       <span className="text-xs text-ink-soft">
-        {fields.length} columns · {rows.length} slots
+        {fields.length} fields · {rows.length} slots
       </span>
 
       {/* Divider */}
