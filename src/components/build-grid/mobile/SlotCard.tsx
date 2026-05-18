@@ -89,17 +89,14 @@ function FieldRow({
     >
       <div className="flex w-[100px] shrink-0 items-center gap-1.5 text-xs text-ink-muted">
         <Icon size={12} className="text-ink-soft" aria-hidden="true" />
-        <span className="truncate">
-          {field.name}
-          {field.required ? <span className="text-danger"> *</span> : null}
-        </span>
+        <span className="truncate">{field.name}</span>
       </div>
       {field.type === 'enum' ? (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={field.name}
-          className="min-w-0 flex-1 appearance-none border-none bg-transparent py-1 text-base text-ink outline-none"
+          className="min-w-0 flex-1 appearance-none border-none bg-transparent py-1 text-right text-base text-ink outline-none"
         >
           <option value="">—</option>
           {(field.config.fieldType === 'enum' ? field.config.choices : []).map((choice) => (
@@ -114,7 +111,7 @@ function FieldRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={field.name}
-          className="min-w-0 flex-1 border-none bg-transparent py-1 text-base text-ink outline-none"
+          className="min-w-0 flex-1 border-none bg-transparent py-1 text-right text-base text-ink outline-none"
         />
       )}
     </div>
@@ -158,7 +155,7 @@ function CapacityRow({
         }}
         aria-label="Capacity"
         placeholder="Unlimited"
-        className="min-w-0 flex-1 border-none bg-transparent py-1 text-base text-ink outline-none placeholder:text-ink-soft"
+        className="min-w-0 flex-1 border-none bg-transparent py-1 text-right text-base text-ink outline-none placeholder:text-ink-soft"
       />
     </div>
   );
