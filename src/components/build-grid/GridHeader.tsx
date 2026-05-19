@@ -1,22 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Plus, Pencil, GripVertical } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { buildColsTemplate } from './columnSizing';
-import { ColumnHeaderMenu } from './ColumnHeaderMenu';
 import { fieldTypeMeta } from './fieldTypes';
 import { ResizeHandle } from './ResizeHandle';
+import { useReorderable } from './useReorderable';
 import type { GridField } from './useGridState';
 
 interface GridHeaderProps {
   fields: GridField[];
   onEditField: (field: GridField) => void;
   onAddField: () => void;
-  onDeleteField: (fieldId: string) => void;
-  onMoveField: (fieldId: string, toIdx: number) => void;
+  onMoveField: (fromIdx: number, toIdx: number) => void;
   onResize: (fieldId: string, width: number) => void;
   onResetWidth: (fieldId: string) => void;
+  onAnnounce?: (message: string) => void;
 }
 
 const FLASH_MS = 700;
@@ -25,49 +25,19 @@ export function GridHeader({
   fields,
   onEditField,
   onAddField,
-  onDeleteField,
   onMoveField,
   onResize,
   onResetWidth,
+  onAnnounce,
 }: GridHeaderProps) {
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [justMovedId, setJustMovedId] = useState<string | null>(null);
+  const [hoverDragId, setHoverDragId] = useState<string | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const setButtonRef = useCallback((id: string) => (el: HTMLButtonElement | null) => {
     if (el) buttonRefs.current.set(id, el);
     else buttonRefs.current.delete(id);
   }, []);
-
-  const closeMenu = useCallback(() => {
-    setOpenMenuId((prev) => {
-      if (prev) buttonRefs.current.get(prev)?.focus();
-      return null;
-    });
-  }, []);
-
-  // Close on outside click + Esc while a menu is open. The menu lives in a
-  // portal under document.body, so we identify it via [data-column-header-menu]
-  // rather than DOM-tree containment. `pointerdown` covers mouse, touch, and pen.
-  useEffect(() => {
-    if (openMenuId === null) return;
-    const onDown = (e: PointerEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (target.closest('[data-column-header-button]')) return;
-      if (target.closest('[data-column-header-menu]')) return;
-      closeMenu();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu();
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [openMenuId, closeMenu]);
 
   // Clear flash highlight after a short delay.
   useEffect(() => {
@@ -76,23 +46,41 @@ export function GridHeader({
     return () => clearTimeout(id);
   }, [justMovedId]);
 
-  const move = (fieldId: string, toIdx: number) => {
-    onMoveField(fieldId, toIdx);
-    setJustMovedId(fieldId);
-    closeMenu();
-  };
-
-  // Anchor ref is stable per `openMenuId` — only one menu is open at a time, so
-  // we don't need a per-field ref. Rebuilding only on `openMenuId` change keeps
-  // the menu's resize/scroll listeners attached exactly once per open.
-  const anchorRef = useMemo(
-    () => ({
-      get current() {
-        return openMenuId ? buttonRefs.current.get(openMenuId) ?? null : null;
-      },
-    }),
-    [openMenuId],
+  const idToIndex = useCallback(
+    (id: string) => fields.findIndex((f) => f.id === id),
+    [fields],
   );
+
+  const handleReorder = useCallback(
+    (fromIdx: number, toIdx: number) => {
+      const moved = fields[fromIdx];
+      if (!moved) return;
+      onMoveField(fromIdx, toIdx);
+      setJustMovedId(moved.id);
+      onAnnounce?.(`Moved field "${moved.name}" to position ${toIdx + 1} of ${fields.length}.`);
+      // Restore focus to the pencil after the reorder so keyboard users keep their place.
+      requestAnimationFrame(() => {
+        buttonRefs.current.get(moved.id)?.focus();
+      });
+    },
+    [fields, onMoveField, onAnnounce],
+  );
+
+  const { dragId, overId, source, target } = useReorderable<HTMLElement>({
+    idToIndex,
+    onReorder: handleReorder,
+  });
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, idx: number) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (e.key === 'ArrowLeft' && idx > 0) {
+      e.preventDefault();
+      handleReorder(idx, idx - 1);
+    } else if (e.key === 'ArrowRight' && idx < fields.length - 1) {
+      e.preventDefault();
+      handleReorder(idx, idx + 1);
+    }
+  };
 
   return (
     <div
@@ -112,64 +100,69 @@ export function GridHeader({
       {fields.map((f, i) => {
         const meta = fieldTypeMeta(f.type);
         const Icon = meta.icon;
-        const isOpen = openMenuId === f.id;
         const isFlashing = justMovedId === f.id;
-        const headerBg = isOpen
-          ? 'bg-brand-soft'
+        const isDragging = dragId === f.id;
+        const isDropTarget = overId === f.id && dragId !== null && dragId !== f.id;
+        const showGrip = hoverDragId === f.id || isDragging;
+        const headerBg = isDropTarget
+          ? 'bg-brand-soft/40'
           : isFlashing
             ? 'bg-brand-soft/60'
             : '';
+        const targetProps = target(f.id);
         return (
           <div
             key={f.id}
-            style={{ position: 'relative' }}
+            style={{
+              position: 'relative',
+              boxShadow: isDropTarget ? 'inset 2px 0 0 0 #1f6feb' : undefined,
+              opacity: isDragging ? 0.5 : 1,
+            }}
             className={`flex items-center border-r border-surface-sunk transition-colors ${headerBg}`}
+            onDragOver={targetProps.onDragOver}
+            onDragLeave={targetProps.onDragLeave}
+            onDrop={targetProps.onDrop}
           >
+            {/* Drag source: type icon span that swaps to GripVertical on hover. */}
+            <span
+              {...source(f.id)}
+              onMouseEnter={() => setHoverDragId(f.id)}
+              onMouseLeave={() => setHoverDragId((prev) => (prev === f.id ? null : prev))}
+              aria-label={`Drag to reorder field "${f.name}"`}
+              title="Drag to reorder"
+              className="flex flex-shrink-0 items-center justify-center pl-2 pr-1 py-2 cursor-grab active:cursor-grabbing text-brand"
+            >
+              {showGrip ? (
+                <GripVertical size={12} className="text-ink-soft" />
+              ) : (
+                <Icon size={12} className="text-brand" />
+              )}
+            </span>
+
+            <span className="flex-1 min-w-0 text-[13px] font-medium text-ink truncate py-2">
+              {f.name}
+            </span>
+
+            {/* Inline edit pencil — variant C: pencil at rest, brand-tinted chip on hover/focus. */}
             <button
               ref={setButtonRef(f.id)}
               type="button"
-              data-column-header-button
-              onClick={() => setOpenMenuId((cur) => (cur === f.id ? null : f.id))}
-              aria-haspopup="menu"
-              aria-expanded={isOpen}
-              className="flex flex-1 items-center gap-1.5 px-2 py-2 text-left min-w-0 overflow-hidden text-ellipsis"
+              data-field-edit-button
+              onClick={() => onEditField(f)}
+              onKeyDown={(e) => handleKeyDown(e, i)}
+              aria-label={`Edit field "${f.name}"`}
+              title="Edit field"
+              className="group/edit ml-auto mr-2 flex flex-shrink-0 items-center justify-center rounded px-1 py-1 text-ink-soft hover:bg-brand/15 hover:text-brand focus:outline-none focus:bg-brand/15 focus:text-brand transition-colors"
             >
-              <Icon size={12} className="text-brand flex-shrink-0" />
-              <span className="text-[13px] font-medium text-ink truncate">{f.name}</span>
-              <span
-                aria-hidden
-                className={`ml-auto flex flex-shrink-0 items-center justify-center rounded px-1 py-0.5 ${
-                  isOpen ? 'bg-brand/15 text-brand' : 'text-ink-soft'
-                }`}
-              >
-                <ChevronDown size={11} />
-              </span>
+              <Pencil size={11} />
             </button>
+
             <ResizeHandle
               field={f}
               fieldIndex={i}
               onResize={(width) => onResize(f.id, width)}
               onReset={() => onResetWidth(f.id)}
             />
-            {isOpen && (
-              <ColumnHeaderMenu
-                anchorRef={anchorRef}
-                isFirst={i === 0}
-                isLast={i === fields.length - 1}
-                onEdit={() => {
-                  closeMenu();
-                  onEditField(f);
-                }}
-                onMoveLeft={() => move(f.id, i - 1)}
-                onMoveRight={() => move(f.id, i + 1)}
-                onMoveStart={() => move(f.id, 0)}
-                onMoveEnd={() => move(f.id, fields.length - 1)}
-                onDelete={() => {
-                  closeMenu();
-                  onDeleteField(f.id);
-                }}
-              />
-            )}
           </div>
         );
       })}

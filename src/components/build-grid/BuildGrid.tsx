@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useGridState } from './useGridState';
 import type { GridField } from './useGridState';
@@ -83,9 +83,28 @@ export function BuildGrid({ signupId, signupMeta, initialFields, initialSlots, i
 
   const [editingField, setEditingField] = useState<GridField | null>(null);
   const [showFieldEditorCreate, setShowFieldEditorCreate] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
+  const announceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const announce = useCallback((message: string) => {
+    if (announceTimerRef.current !== null) clearTimeout(announceTimerRef.current);
+    // Force change so identical messages still get announced.
+    setAnnouncement('');
+    announceTimerRef.current = setTimeout(() => setAnnouncement(message), 30);
+  }, []);
 
   return (
     <>
+      {/* Visually-hidden live region for drag/keyboard reorder announcements. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
+
       {/* Mobile tree — <md only */}
       <div className="md:hidden">
         <MobileBuildGrid
@@ -124,10 +143,13 @@ export function BuildGrid({ signupId, signupMeta, initialFields, initialSlots, i
               fields={state.fields}
               onEditField={(field) => setEditingField(field)}
               onAddField={() => setShowFieldEditorCreate(true)}
-              onDeleteField={(fieldId) => { void deleteField(fieldId); }}
-              onMoveField={(fieldId, toIdx) => { void moveField(fieldId, toIdx); }}
+              onMoveField={(fromIdx, toIdx) => {
+                const field = state.fields[fromIdx];
+                if (field) void moveField(field.id, toIdx);
+              }}
               onResize={(fieldId, width) => setFieldWidth(fieldId, width)}
               onResetWidth={(fieldId) => setFieldWidth(fieldId, undefined)}
+              onAnnounce={announce}
             />
             <GroupedBody
               fields={state.fields}
